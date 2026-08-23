@@ -40,9 +40,11 @@ Validation completed on Aug 23:
 
 Do not commit private keys, wallet files, or any canary dataset to this repository.
 
-## Owner completion checklist
+## Action requested from wallet owner
 
-The wallet owner should complete and confirm each item in the PR before merging it:
+Use the owner-controlled, funded Base Sepolia wallet to register DWCS for `FRAUD_DETECTION`. Do not wait for this PR to merge. After the transaction finalizes, comment on the PR with the public binary URL or IPFS CID, SHA-256, transaction hash, registration ID, and initial registration status. Do not share private keys.
+
+Complete and confirm each item below:
 
 - [ ] Rebuilt the release binary from the reviewed commit.
 - [ ] Recomputed and verified the SHA-256 value.
