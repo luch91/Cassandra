@@ -13,8 +13,8 @@
  * concern, see onchain/action.ts.
  */
 
-import { wrapFetchWithPayment } from "@x402/fetch";
-import { createSigner } from "@x402/evm";
+import { wrapFetchWithPaymentFromConfig } from "@x402/fetch";
+import { ExactEvmScheme } from "@x402/evm";
 
 export type TelegraphIntentId =
   | "FRAUD_DETECTION"
@@ -41,7 +41,7 @@ export interface AskResult {
 
 const TELEGRAPH_NODE_URL = process.env.TELEGRAPH_NODE_URL ?? "https://devnode.telegraphprotocol.com";
 
-function getFetchWithPayment() {
+async function getFetchWithPayment() {
   const privateKey = process.env.EVM_PRIVATE_KEY;
   if (!privateKey) {
     throw new Error(
@@ -49,8 +49,20 @@ function getFetchWithPayment() {
       "(USDC on Base Sepolia) to pay for x402 requests. See .env.example."
     );
   }
-  const signer = createSigner(privateKey);
-  return wrapFetchWithPayment(fetch, signer);
+  if (!privateKey.startsWith("0x")) {
+    throw new Error("EVM_PRIVATE_KEY must be a 0x-prefixed hexadecimal private key.");
+  }
+
+  const { privateKeyToAccount } = await import("viem/accounts");
+  const account = privateKeyToAccount(privateKey as `0x${string}`);
+  return wrapFetchWithPaymentFromConfig(fetch, {
+    schemes: [
+      {
+        network: "eip155:84532",
+        client: new ExactEvmScheme(account),
+      },
+    ],
+  });
 }
 
 /**
@@ -75,7 +87,7 @@ export async function discoverMiners(intent: TelegraphIntentId): Promise<MinerCa
  * Never fabricate a response here, if the call fails, let it throw.
  */
 export async function askMiner(minerId: string, query: string): Promise<AskResult> {
-  const fetchWithPayment = getFetchWithPayment();
+  const fetchWithPayment = await getFetchWithPayment();
   const res = await fetchWithPayment(`${TELEGRAPH_NODE_URL}/engine/v1/ask/${minerId}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
