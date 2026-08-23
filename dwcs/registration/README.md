@@ -39,3 +39,17 @@ Validation completed on Aug 23:
 5. Record the returned registration ID and final status in the local progress log.
 
 Do not commit private keys, wallet files, or any canary dataset to this repository.
+
+## Owner completion checklist
+
+The wallet owner should complete and confirm each item in the PR before merging it:
+
+- [ ] Rebuilt the release binary from the reviewed commit.
+- [ ] Recomputed and verified the SHA-256 value.
+- [ ] Repeated the zero-import check with `wasm-tools print`.
+- [ ] Repeated the official `go-tester` checks against that binary.
+- [ ] Published the exact binary at a public HTTPS URL or IPFS CID.
+- [ ] Submitted the `FRAUD_DETECTION` registration with the owner-controlled wallet.
+- [ ] Recorded the registration ID, transaction hash, and initial status in the local progress log.
+
+The registration ID, transaction hash, and public binary URL may be added after the transaction is finalized. Do not add any secret material.
