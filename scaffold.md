@@ -1,6 +1,6 @@
 # Project Cassandra, full repository scaffold
 
-This document contains the complete scaffold for the Telegraph Protocol hackathon submission: every file, in full, in the order shown in the tree below.
+This document contains the complete scaffold for the Telegraph Protocol program submission: every file, in full, in the order shown in the tree below.
 
 ## Directory tree
 
@@ -148,7 +148,7 @@ Prefer stopping and asking over shipping a guess. The spec's own framing: "we ca
 ## `AGENT_HANDOVER_PROMPT.md`
 
 ```markdown
-# Handover prompt: Project Cassandra (Telegraph Protocol hackathon)
+# Handover prompt: Project Cassandra (Telegraph Protocol program)
 
 Paste this entire document as your first message to the coding agent picking up this repository. It is self-contained. Do not summarize or skip sections when handing it off.
 
@@ -156,7 +156,7 @@ Paste this entire document as your first message to the coding agent picking up 
 
 ## 1. What you are building
 
-Two linked hackathon submissions for the Telegraph Protocol hackathon, built by one team, under one repository.
+Two linked program submissions for the Telegraph Protocol program, built by one team, under one repository.
 
 **DWCS (Disagreement-Weighted Canonical Scoring).** A real, deployable Telegraph scoring module. It is a sandboxed WASM binary that scores a Miner's answer against a ground truth answer for the `FRAUD_DETECTION` intent (and possibly a second Tier 3 intent). It receives three plain text strings, `question`, `ground_truth`, `miner_answer`, and returns a single float between 0 and 1. It has no network access, no filesystem access, and no shared state between calls. Instead of a single naive similarity check, it computes four structurally different deterministic similarity metrics and combines them, treating disagreement across those metrics as a signal that an answer is gaming one specific metric rather than being genuinely correct.
 
@@ -204,7 +204,7 @@ Read `docs/PROJECT_SPEC.md` in full before writing any code. It is the source of
 | D8 | Made `FRAUD_DETECTION` the sole primary intent, moved `AGENT_TASK` to monitor only | Telegraph team confirmed directly that `FRAUD_DETECTION`'s ground truth is finalized and scoreable now, `AGENT_TASK`'s is still pending on their side. |
 | D9 | Pivoted DWCS from a multi-LLM-judge ensemble to a deterministic multi-metric ensemble | Telegraph's docs confirmed the scoring module has no network access at all, an LLM judge cannot be called from inside it. The disagreement-as-signal idea survived the pivot, computed across diverse deterministic similarity metrics instead of diverse LLM judge passes. |
 | D10 | Split Sentinel's on-chain action into Layer 1, automatic payment settlement, and Layer 2, an optional governance-contract flag | Telegraph's own settlement is the x402 payment receipt, it does not include any DAO-specific action. Keeping these as two layers means Layer 1 alone already satisfies the "must use Telegraph miners" requirement with a real receipt, and Layer 2 remains a scoped, explicit decision rather than an assumed given. |
-| D11 | Adopted strict repository hygiene, no em-dashes, professional commit messages with no AI-tool attribution, gitignore every markdown file except `README.md` | This is a hackathon submission that judges and other builders will actually read and clone. A clean, professional repository is part of the credibility argument alongside the technical one. |
+| D11 | Adopted strict repository hygiene, no em-dashes, professional commit messages with no AI-tool attribution, gitignore every markdown file except `README.md` | This is a program submission that judges and other builders will actually read and clone. A clean, professional repository is part of the credibility argument alongside the technical one. |
 
 ## 5. Current status, what is real versus what is a stub
 
@@ -250,7 +250,7 @@ Read `docs/PROJECT_SPEC.md` in full before writing any code. It is the source of
 2. Verify the real `@x402/fetch` and `@x402/evm` npm versions. This blocks a clean `npm install` for the application.
 3. Decide the secondary Tier 3 intent (`AI_TEXT_DETECTION`, `CONTENT_VERIFICATION`, or `TEXT_AUTHENTICITY_CHECK`). Registration is confirmed open for all three, this is a choice, not a blocker to research further.
 4. Decide the specific governance document source and target contract for Sentinel. This unblocks both `governance_source.ts` and Layer 2 of the on-chain action.
-5. Confirm hackathon registration status for the team.
+5. Confirm program registration status for the team.
 6. Populate the real canary dataset in `dwcs/canaries/dataset.jsonl` with reviewed adversarial examples, replacing the placeholder content in `dataset.example.jsonl`.
 7. Miner Track attribution mechanics, low priority, only relevant if a thin Miner is ever added later.
 
@@ -263,7 +263,7 @@ Read `docs/PROJECT_SPEC.md` in full before writing any code. It is the source of
 
 ## 9. Final operating principle
 
-When in doubt, stop and ask rather than guess. A blocked task with a clear, specific question is a better outcome than a shipped assumption that has to be unwound later. This project explicitly cannot afford avoidable mistakes given the hackathon deadline. Treat every interface, every contract, and every dependency version as unverified until you have actually checked it yourself, not assumed it from a prior description, including this one.
+When in doubt, stop and ask rather than guess. A blocked task with a clear, specific question is a better outcome than a shipped assumption that has to be unwound later. This project explicitly cannot afford avoidable mistakes given the program deadline. Treat every interface, every contract, and every dependency version as unverified until you have actually checked it yourself, not assumed it from a prior description, including this one.
 ```
 
 ---
@@ -273,7 +273,7 @@ When in doubt, stop and ask rather than guess. A blocked task with a clear, spec
 ```markdown
 # Project Cassandra
 
-Telegraph Protocol hackathon submission. Two deliverables built as one system:
+Telegraph Protocol program submission. Two deliverables built as one system:
 
 1. **DWCS** (Disagreement-Weighted Canonical Scoring), a Script Author track entry, a real WASM scoring module. See `dwcs/`.
 2. **Sentinel**, the Application track entry that pays for real Telegraph miner inference to triage on-chain governance proposals for fraud signals. See `app/`.
@@ -953,7 +953,7 @@ Nothing yet. Add a bullet here the moment something demoable exists, then turn i
 ```markdown
 # Project Cassandra
 ### Disagreement-Weighted Canonical Scoring for Telegraph Protocol
-**Telegraph Hackathon, Season I, 2026 (Track 2: Script Authors + Track 3: Applications)**
+**Telegraph program, Season I, 2026 (Track 2: Script Authors + Track 3: Applications)**
 
 Status: Pre-build spec, locked for execution
 Last verified against source: Aug 21, 2026
@@ -970,9 +970,9 @@ This is the execution spec, not a pitch deck. Every claim about how Telegraph wo
 
 | # | Source | What it told us |
 |---|--------|------------------|
-| 1 | `hackathon.telegraphprotocol.com` | Track structure, prize pool, dates, "300+ builders registered" |
-| 2 | `hackathon.telegraphprotocol.com/rules` | Judging criteria weights, guardrails, non-negotiable rules, prize breakdown |
-| 3 | `hackathon.telegraphprotocol.com/supported-intents` | Full 40-intent catalog, Tier A/B split, ground-truth methods per intent |
+| 1 | `program.telegraphprotocol.com` | Track structure, prize pool, dates, "300+ builders registered" |
+| 2 | `program.telegraphprotocol.com/rules` | Judging criteria weights, guardrails, non-negotiable rules, prize breakdown |
+| 3 | `program.telegraphprotocol.com/supported-intents` | Full 40-intent catalog, Tier A/B split, ground-truth methods per intent |
 | 4 | `telegraphprotocol.com` (main site) | Protocol mechanics: Miners, Validators, Script Authors, on-chain settlement, "1,000+ standardized AI skills" index |
 | 5 | `integrate.telegraphprotocol.com` | Developer console exists. "Connect API," "Submit WASM," "Consume Intelligence" as the three literal submission paths |
 | 6 | `docs.telegraphprotocol.com` | JS-rendered app shell only, could not extract page-level technical content via fetch. **Needs direct browser access before build starts.** |
@@ -986,7 +986,7 @@ This is the execution spec, not a pitch deck. Every claim about how Telegraph wo
 
 The scoring module itself is a sandboxed, self-contained WASM binary. It receives exactly three plain-text strings, `question`, `ground_truth`, `miner_answer`, and must return a single `f32` between 0 and 1. Critically: **it has no network access, no filesystem access, and no shared state across calls.** It cannot call an external LLM API. It cannot look anything up. It is pure, deterministic computation over the three strings it's given, nothing else. Every module also has to clear a two-stage promotion process: Stage 1 structural checks (loads correctly, scores a blank answer as exactly 0, scores a correct answer above an unrelated one, doesn't crash on adversarial input), then Stage 2, where it has to beat the currently active "champion" module on a fixed benchmark of good/bad answer pairs, on margin, win-count, and self-match strength, or it never goes live.
 
-Two structural facts make this hackathon winnable in a non-cliche way:
+Two structural facts make this program winnable in a non-cliche way:
 
 **Fact A: the network's own reference example is a naive word-overlap scorer.**
 Telegraph's own documentation ships a simple word-overlap scoring example explicitly framed as "a legitimate starting point you can build on." That is exactly the naive, easily-gamed approach most entrants will ship as-is. It fails on the exact case Telegraph's own testing guidance names directly: "a reworded version of the correct answer that says the same thing differently... a good scorer should still recognize this as correct." Naive word overlap does not reliably do that. Whoever builds something structurally better than word-matching, while staying inside the no-network sandbox, has a real, demonstrable, and legitimately hard-to-replicate edge.
@@ -1003,7 +1003,7 @@ The earlier assumption (from a third-party writeup) that "the network discards v
 
 This is not a borrowed idea. It is a direct port of a mechanism the team has already shipped and had recognized by the GenLayer core team:
 
-- **Penumbra**, a library of 20 Intelligent Contract primitives built explicitly around *"disagreement as measurement instrument."* GenLayer's Intelligent Contracts already solve the exact problem Telegraph's Script Author track is now opening up as a hackathon category: how do you get trustworthy, non-gameable consensus out of non-deterministic LLM outputs? GenLayer's answer is optimistic democracy, where validators vote, and it's disagreement among validator outputs, not a single validator's confidence, that becomes the actual trust signal.
+- **Penumbra**, a library of 20 Intelligent Contract primitives built explicitly around *"disagreement as measurement instrument."* GenLayer's Intelligent Contracts already solve the exact problem Telegraph's Script Author track is now opening up as a program category: how do you get trustworthy, non-gameable consensus out of non-deterministic LLM outputs? GenLayer's answer is optimistic democracy, where validators vote, and it's disagreement among validator outputs, not a single validator's confidence, that becomes the actual trust signal.
 - **Counsel**, an advocate agent for on-chain deals, judged by GenLayer consensus, proven live across multiple environments. This is a working precedent for building an agent whose entire design assumes its output will be judged adversarially and must survive that.
 - **The multi-repo RL agent autonomy project**, connecting off-chain RL agents to on-chain consensus reward functions, is a direct precedent for Section 5's Application Track build (an agent that acts on verified intelligence and triggers on-chain consequences).
 
@@ -1056,7 +1056,7 @@ Priority order, and why:
 1. **`FRAUD_DETECTION`** (GT finalized). Sole primary target. Directly named as a "Risk & Trust" category, and now confirmed live and scoreable.
 2. **`AI_TEXT_DETECTION`, `CONTENT_VERIFICATION`, `TEXT_AUTHENTICITY_CHECK`**. All Tier B, LLM-judge, "deterministic" claimed but almost certainly single-judge in practice today; the secondary target to fill out the "3 or fewer intents" allocation now that `AGENT_TASK` is on hold. Good candidates for DWCS to show a measurable accuracy delta against whatever the incumbent scoring looks like. Registration confirmed open for all three (open question 8).
 3. **`AGENT_TASK`** (GT pending). Monitor, do not build against as a primary target yet. Revisit once the Telegraph team confirms its GT has landed. If it lands before Aug 31, it can be added as a third intent; if not, do not force it in.
-4. Do **not** spread across more than 3 intents for Hackathon 1. Depth beats breadth: the guardrail requires 3+ active Miners and 100+ real Track 3 requests *per intent* for prize eligibility, so concentrating demand matters more than covering many intents thinly.
+4. Do **not** spread across more than 3 intents for program 1. Depth beats breadth: the guardrail requires 3+ active Miners and 100+ real Track 3 requests *per intent* for prize eligibility, so concentrating demand matters more than covering many intents thinly.
 
 ---
 
@@ -1069,7 +1069,7 @@ An autonomous compliance/fraud-triage agent that pays for `FRAUD_DETECTION` (plu
 - **Layer 1, automatic and Telegraph-native:** every paid x402 request is itself an on-chain-settled payment. The response includes a `signal_hash`, independently verifiable via `GET /engine/v1/signal/{signal_hash}` and visible on `explorer.telegraphprotocol.com`. This alone satisfies "must use Telegraph miners" and gives us a real, auditable receipt for every scored proposal, no extra integration needed.
 - **Layer 2, our own addition, still an open build decision:** an explicit "flag this proposal" action written to a governance contract. Telegraph does not provide this, it has to be our own contract call into whichever governance system the chosen document stream (Section 5.2) uses. This is a real scope item, not a documentation gap, decide and record the specific contract/interface once the document stream is finalized.
 
-This satisfies, directly, two of the hackathon's own named "High-Value Areas to Explore":
+This satisfies, directly, two of the program's own named "High-Value Areas to Explore":
 - *"On-Chain & Blockchain Intelligence Pipelines"*, explicitly called their highest-value use case
 - *"Signal Quality & Verification"*, explicitly named as an area to deeply understand
 
@@ -1083,7 +1083,7 @@ Recommendation: **on-chain governance proposals.** It's the tightest, most demoa
 ### 5.3 Why building both tracks together is the actual strategy, not scope creep
 - The Application Track's judging criteria require **"must use Telegraph miners"** and reward "creativity and usefulness" plus real usage.
 - The Miner/Script guardrail requires **3+ active Miners and 100+ real requests from Track 3 applications** per intent to be eligible for global cash prizes at all.
-- By owning both the scoring script (Track 2) and a live consumer of it (Track 3), we are not hoping strangers generate our qualifying demand. We generate it ourselves, deterministically, before the Sep 7 deadline, and we can demonstrate the full flywheel (Miner, Script, Application, real usage, re-ranking) as a single coherent narrative in the submission. That narrative, proving the flywheel works end-to-end, is literally what the rules page states is "the purpose of this hackathon."
+- By owning both the scoring script (Track 2) and a live consumer of it (Track 3), we are not hoping strangers generate our qualifying demand. We generate it ourselves, deterministically, before the Sep 7 deadline, and we can demonstrate the full flywheel (Miner, Script, Application, real usage, re-ranking) as a single coherent narrative in the submission. That narrative, proving the flywheel works end-to-end, is literally what the rules page states is "the purpose of this program."
 
 ---
 
@@ -1140,9 +1140,9 @@ These are hard constraints. If a build decision conflicts with one of these, the
 | D8 | Drop `AGENT_TASK` as a primary target, make `FRAUD_DETECTION` the sole primary intent, add a Tier 3 intent as secondary | Telegraph team confirmed directly: `FRAUD_DETECTION`'s GT is finalized and scoreable now; `AGENT_TASK`'s GT is still pending on their side. Building against an intent whose GT isn't finished yet risks wasted work and a script that can't be evaluated. Supersedes D2's original two-intent framing. | Keeping `AGENT_TASK` as a co-primary target and hoping the GT lands in time, rejected, too much schedule risk with Track 1/2 closing Aug 31 | Aug 21 |
 | D9 | Pivot DWCS from a multi-LLM-judge ensemble to a multi-metric deterministic algorithmic ensemble (exact match, word overlap, n-gram Jaccard, stopword-weighted overlap, LCS ratio) | Telegraph's own docs confirm the scoring module runs in a sandboxed WASM environment with no network access, no filesystem access, no shared state. Calling an external LLM judge from inside `rank_answer` is not possible. The core "disagreement as signal" idea is preserved, computed across diverse deterministic metrics instead of diverse LLM judge passes. This is not a downgrade of the idea, it's the only version of it that can actually run where it needs to run. | Keeping the LLM-judge ensemble design and hoping for some workaround (e.g. precomputing judge calls outside the module and passing results in), rejected, the module only ever receives `question`/`ground_truth`/`miner_answer` as plain text, there is no channel to pass in precomputed judge scores | Aug 22 |
 | D10 | Split Sentinel's "on-chain action" into two explicit layers: automatic x402 payment settlement (Layer 1) and an optional separate governance-contract flag write (Layer 2) | Telegraph's on-chain settlement is the x402 payment receipt (`signal_hash`), confirmed via docs and team reply. It does not include any DAO-specific action. Conflating the two in the original spec risked building toward a Telegraph API that doesn't exist. Making this two layers means Layer 1 alone already satisfies "must use Telegraph miners" with a real on-chain receipt, and Layer 2 is scoped as its own decision once a document stream is finalized, not an assumed given | Aug 22 |
-| D11 | Adopt strict repo hygiene: no em-dashes anywhere, professional conventional commit messages with no AI-tool attribution, and gitignore every `.md` file except files literally named `README.md` | This is a hackathon submission judges and other builders will actually read and clone. A clean, professional-looking repo history and file structure is part of the credibility argument alongside the technical one. Keeping internal planning docs (spec, decision log, task list, agent instructions) untracked and local avoids cluttering the public repo with process artifacts while still letting them exist and inform the build | Aug 22 |
+| D11 | Adopt strict repo hygiene: no em-dashes anywhere, professional conventional commit messages with no AI-tool attribution, and gitignore every `.md` file except files literally named `README.md` | This is a program submission judges and other builders will actually read and clone. A clean, professional-looking repo history and file structure is part of the credibility argument alongside the technical one. Keeping internal planning docs (spec, decision log, task list, agent instructions) untracked and local avoids cluttering the public repo with process artifacts while still letting them exist and inform the build | Aug 22 |
 | D3 | Disagreement is a signal about Miner output, never license for our script's own volatility | Source #7 confirms Telegraph's meta-layer discards drifting/volatile scripts automatically. Conflating "detecting Miner gaming" with "our script being noisy" would get us discarded by the very mechanism we're trying to exploit. | Letting ensemble variance directly set our published canonical score without a stability check, rejected, too risky given confirmed discard mechanism | Aug 21 |
-| D4 | Build Track 2 (script) and Track 3 (application) together, single team, single narrative | Guardrail requires 3+ Miners and 100+ real requests per intent; owning both ends lets us generate qualifying demand deterministically rather than hoping for organic traffic within a 7-day Track 3 window | Submitting only the script and hoping other hackathon apps generate demand for our intents, rejected, too much dependency risk with only ~10 days of runway before Track 1/2 closes | Aug 21 |
+| D4 | Build Track 2 (script) and Track 3 (application) together, single team, single narrative | Guardrail requires 3+ Miners and 100+ real requests per intent; owning both ends lets us generate qualifying demand deterministically rather than hoping for organic traffic within a 7-day Track 3 window | Submitting only the script and hoping other program apps generate demand for our intents, rejected, too much dependency risk with only ~10 days of runway before Track 1/2 closes | Aug 21 |
 | D5 | Pick on-chain governance proposals as the Application Track document stream | Tightest demoable loop, closest match to prior shipped work (Counsel, an advocate agent judged by consensus on-chain), easiest to source real documents (public governance forums) without needing private data partnerships | DeFi disclosure claims and financial press releases, both viable but require either audit-data partnerships or harder-to-verify ground truth within our timeline; deprioritized, not discarded | Aug 21 |
 | D6 | Concentrate on 3 or fewer intents total across both tracks | Guardrail math (3+ Miners, 100+ requests *per intent*) directly punishes spreading thin; a strong showing on 2 to 3 intents beats a weak showing on 6 | Covering more intents for "coverage" optics, rejected | Aug 21 |
 | D7 | Do not finalize WASM script interface details in this document | `docs.telegraphprotocol.com` is a JS-rendered SPA that did not yield extractable technical content via automated fetch. Writing code against a guessed interface risks wasted build days. | Guessing at a plausible schema based on similar protocols (e.g. Bittensor-style subnet scripts) and building against it, rejected, explicitly a "cannot afford mistakes" risk per the brief | Aug 21 |
@@ -1166,7 +1166,7 @@ These are not filled in with best guesses anywhere above. Resolve via the actual
 
 ---
 
-## 10. Execution timeline (compressed against actual hackathon dates)
+## 10. Execution timeline (compressed against actual program dates)
 
 | Date | Milestone |
 |------|-----------|
@@ -1188,8 +1188,8 @@ These are not filled in with best guesses anywhere above. Resolve via the actual
 Not a build note, a framing note. The write-up for both submissions should make three claims explicit, in this order:
 
 1. We identified a named, unsolved problem the protocol itself admits exists (`GT: TBD`, `No GT`) rather than competing inside an already-solved rubric.
-2. Our solution is a working port of a previously-shipped, externally-recognized consensus mechanism (GenLayer/Penumbra's disagreement-as-signal, Counsel's on-chain judged advocate agent), not a novel, unproven idea invented for this hackathon. That's a credibility argument judges can verify.
-3. We proved the flywheel the hackathon exists to test: Miner-equivalent signal, ranked by our script, consumed by our own live application, generating real demand, as a single closed loop, which is the literal stated purpose of Hackathon 1 per the rules page.
+2. Our solution is a working port of a previously-shipped, externally-recognized consensus mechanism (GenLayer/Penumbra's disagreement-as-signal, Counsel's on-chain judged advocate agent), not a novel, unproven idea invented for this program. That's a credibility argument judges can verify.
+3. We proved the flywheel the program exists to test: Miner-equivalent signal, ranked by our script, consumed by our own live application, generating real demand, as a single closed loop, which is the literal stated purpose of program 1 per the rules page.
 ```
 
 ---
@@ -2102,7 +2102,7 @@ describe("scorePair (TS prototype, mirrors dwcs/rust-module/src/lib.rs)", () => 
   "name": "telegraph-cassandra",
   "version": "0.0.0",
   "private": true,
-  "description": "Telegraph Protocol hackathon submission: DWCS (Script Author track) and Sentinel (Application track).",
+  "description": "Telegraph Protocol program submission: DWCS (Script Author track) and Sentinel (Application track).",
   "scripts": {
     "test": "jest",
     "test:dwcs": "jest dwcs/tests",

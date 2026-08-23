@@ -1,0 +1,21 @@
+node_modules/
+dist/
+.env
+*.log
+
+# Rust build artifacts, never commit compiled WASM binaries either, they
+# should be built fresh and hashed at registration time.
+dwcs/rust-module/target/
+*.wasm
+
+# Real canary data must never be committed to a public repo.
+dwcs/canaries/dataset.jsonl
+
+# All markdown files are gitignored except any file literally named
+# README.md, anywhere in the tree. Internal planning docs (specs, decision
+# logs, task lists, agent instructions) stay local and out of version
+# control on purpose, only README.md files are meant to be public-facing
+# and tracked. See decision D11 in docs/PROJECT_SPEC.md.
+*.md
+!README.md
+!**/README.md

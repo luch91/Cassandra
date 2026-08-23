@@ -1,0 +1,17 @@
+[package]
+name = "dwcs-scoring-module"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[profile.release]
+opt-level = "z"
+lto = true
+panic = "abort"
+strip = true
+
+# No dependencies on purpose. The compiled module must not depend on
+# anything outside itself (no dynamic imports of OS functions, no threads),
+# per docs.telegraphprotocol.com/docs/scoring/build-a-scoring-module.
