@@ -16,7 +16,7 @@ Layer 1 is the real on-chain payment receipt produced by each x402 request. Laye
 
 - Production code in `src/` must never mock or simulate a Miner response. Test fixtures in `tests/` are fine and clearly labeled.
 - `MIN_MINER_SAMPLE_SIZE` (currently 3) exists because sampling only 1 miner makes an agreement score meaningless by construction, don't lower it to make a demo look easier.
-- Layer 2's on-chain action must not be implemented against a guessed governance contract interface. Pick the real target first.
+- Layer 2 remains excluded for this Snapshot source. Do not invent a governance-contract flag interface.
 
 ## Running Sentinel
 
