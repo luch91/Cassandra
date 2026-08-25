@@ -14,7 +14,7 @@
 //! registering on-chain" non-negotiable with a plain `cargo test`, in
 //! addition to the `go-tester` harness Telegraph provides.
 //!
-//! VERIFICATION STATUS: `cargo test` (host, x86_64) passes all 8 tests.
+//! VERIFICATION STATUS: `cargo test` (host, x86_64) passes all 10 tests.
 //! The real `wasm32-unknown-unknown` release build was verified on Aug 23:
 //! `cargo build --release --target wasm32-unknown-unknown` succeeded, and
 //! `wasm-tools print` confirmed the generated binary has zero imports.
@@ -110,8 +110,13 @@ pub mod scoring {
         "but", "this", "that", "it", "i", "you", "he", "she", "we", "they",
     ];
 
+    fn normalized_token(w: &str) -> &str {
+        w.trim_matches(|c: char| c.is_ascii_punctuation())
+    }
+
     fn is_stopword(w: &str) -> bool {
-        STOPWORDS.iter().any(|s| s.eq_ignore_ascii_case(w))
+        let normalized = normalized_token(w);
+        STOPWORDS.iter().any(|s| s.eq_ignore_ascii_case(normalized))
     }
 
     /// Splits on whitespace into at most MAX_WORDS slices, returns the count.
@@ -128,7 +133,119 @@ pub mod scoring {
     }
 
     fn eq_ci(a: &str, b: &str) -> bool {
-        a.eq_ignore_ascii_case(b)
+        normalized_token(a).eq_ignore_ascii_case(normalized_token(b))
+    }
+
+    fn matches_any(w: &str, candidates: &[&str]) -> bool {
+        candidates.iter().any(|candidate| eq_ci(w, candidate))
+    }
+
+    fn is_fraud_term(w: &str) -> bool {
+        matches_any(w, &["fraud", "fraudulent", "scam", "scammed", "scamming"])
+    }
+
+    fn is_safe_term(w: &str) -> bool {
+        matches_any(w, &["safe", "legitimate", "legit", "valid", "authentic"])
+    }
+
+    fn semantic_eq(a: &str, b: &str) -> bool {
+        eq_ci(a, b) || (is_fraud_term(a) && is_fraud_term(b)) || (is_safe_term(a) && is_safe_term(b))
+    }
+
+    fn is_opposite(a: &str, b: &str) -> bool {
+        let disclosure_pair = (matches_any(a, &["disclose", "disclosed", "disclosure"])
+            && matches_any(b, &["conceal", "concealed", "hide", "hidden"]))
+            || (matches_any(b, &["disclose", "disclosed", "disclosure"])
+                && matches_any(a, &["conceal", "concealed", "hide", "hidden"]));
+        let approval_pair = (matches_any(a, &["approve", "approved", "approval"])
+            && matches_any(b, &["reject", "rejected", "deny", "denied"]))
+            || (matches_any(b, &["approve", "approved", "approval"])
+                && matches_any(a, &["reject", "rejected", "deny", "denied"]));
+        let risk_pair = (is_fraud_term(a) && is_safe_term(b)) || (is_fraud_term(b) && is_safe_term(a));
+        disclosure_pair || approval_pair || risk_pair
+    }
+
+    fn is_negation(w: &str) -> bool {
+        matches_any(w, &["no", "not", "never", "without", "cannot", "cant", "false"])
+    }
+
+    fn is_numeric_token(w: &str) -> bool {
+        let normalized = normalized_token(w);
+        let mut saw_digit = false;
+        for byte in normalized.bytes() {
+            if byte.is_ascii_digit() {
+                saw_digit = true;
+            } else if !matches!(byte, b',' | b'.' | b'%' | b'$') {
+                return false;
+            }
+        }
+        saw_digit
+    }
+
+    fn numeric_eq(a: &str, b: &str) -> bool {
+        let mut a_bytes = [0u8; 32];
+        let mut b_bytes = [0u8; 32];
+        let mut a_len = 0;
+        let mut b_len = 0;
+
+        for byte in normalized_token(a).bytes() {
+            if byte.is_ascii_digit() || byte == b'.' {
+                if a_len == a_bytes.len() {
+                    return false;
+                }
+                a_bytes[a_len] = byte;
+                a_len += 1;
+            }
+        }
+        for byte in normalized_token(b).bytes() {
+            if byte.is_ascii_digit() || byte == b'.' {
+                if b_len == b_bytes.len() {
+                    return false;
+                }
+                b_bytes[b_len] = byte;
+                b_len += 1;
+            }
+        }
+
+        a_len > 0 && a_len == b_len && a_bytes[..a_len] == b_bytes[..b_len]
+    }
+
+    fn is_negated(tokens: &[&str], index: usize) -> bool {
+        (index > 0 && is_negation(tokens[index - 1]))
+            || (index > 1 && is_negation(tokens[index - 2]))
+    }
+
+    fn has_polarity_conflict(answer: &[&str], truth: &[&str]) -> bool {
+        for (answer_index, answer_word) in answer.iter().enumerate() {
+            if is_negation(answer_word) {
+                continue;
+            }
+            for (truth_index, truth_word) in truth.iter().enumerate() {
+                if semantic_eq(answer_word, truth_word)
+                    && is_negated(answer, answer_index) != is_negated(truth, truth_index)
+                {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    fn has_numeric_conflict(answer: &[&str], truth: &[&str]) -> bool {
+        let answer_has_number = answer.iter().any(|word| is_numeric_token(word));
+        let truth_has_number = truth.iter().any(|word| is_numeric_token(word));
+        answer_has_number
+            && truth_has_number
+            && answer
+                .iter()
+                .filter(|word| is_numeric_token(word))
+                .any(|answer_number| !truth.iter().any(|truth_number| numeric_eq(answer_number, truth_number)))
+    }
+
+    fn has_lexical_opposition(answer: &[&str], truth: &[&str]) -> bool {
+        answer
+            .iter()
+            .any(|answer_word| truth.iter().any(|truth_word| is_opposite(answer_word, truth_word)))
     }
 
     /// Fraction of answer words that also appear anywhere in ground truth.
@@ -140,7 +257,7 @@ pub mod scoring {
         }
         let mut matched = 0u32;
         for w in answer {
-            if truth.iter().any(|t| eq_ci(t, w)) {
+            if truth.iter().any(|t| semantic_eq(t, w)) {
                 matched += 1;
             }
         }
@@ -158,7 +275,7 @@ pub mod scoring {
         for w in answer {
             let weight = if is_stopword(w) { 0.3 } else { 1.0 };
             total_weight += weight;
-            if truth.iter().any(|t| eq_ci(t, w)) {
+            if truth.iter().any(|t| semantic_eq(t, w)) {
                 matched_weight += weight;
             }
         }
@@ -186,7 +303,7 @@ pub mod scoring {
                 if used[j] {
                     continue;
                 }
-                if eq_ci(answer[i], truth[j]) && eq_ci(answer[i + 1], truth[j + 1]) {
+                if semantic_eq(answer[i], truth[j]) && semantic_eq(answer[i + 1], truth[j + 1]) {
                     used[j] = true;
                     matched += 1;
                     break;
@@ -218,7 +335,7 @@ pub mod scoring {
         let mut dp = [[0u16; MAX_WORDS + 1]; MAX_WORDS + 1];
         for i in 1..=n {
             for j in 1..=m {
-                if eq_ci(answer[i - 1], truth[j - 1]) {
+                if semantic_eq(answer[i - 1], truth[j - 1]) {
                     dp[i][j] = dp[i - 1][j - 1] + 1;
                 } else {
                     dp[i][j] = if dp[i - 1][j] > dp[i][j - 1] {
@@ -300,7 +417,17 @@ pub mod scoring {
             lcs_ratio(answer, truth),
         ];
 
-        combine(metrics)
+        let score = combine(metrics);
+        if has_polarity_conflict(answer, truth) {
+            return (score * 0.30).clamp(0.0, 1.0);
+        }
+        if has_lexical_opposition(answer, truth) {
+            return (score * 0.30).clamp(0.0, 1.0);
+        }
+        if has_numeric_conflict(answer, truth) {
+            return (score * 0.45).clamp(0.0, 1.0);
+        }
+        score
     }
 
     #[cfg(test)]
@@ -416,6 +543,45 @@ pub mod scoring {
             let min = observed.iter().cloned().fold(1.0f32, f32::min);
             let max = observed.iter().cloned().fold(0.0f32, f32::max);
             assert!(max - min >= 0.25, "benchmark lacks score variance");
+        }
+
+        #[test]
+        fn ordering_regression_suite_covers_fraud_relevant_contradictions() {
+            // Local correctness fixtures only. These are not Telegraph's
+            // unpublished fixtures, are not Miner data, and are never used
+            // by production code paths.
+            let cases = [
+                ("The proposal transfers 5,000 USDC.", "The proposal transfers 5000 USDC.", "The proposal transfers 500 USDC."),
+                ("The proposal is fraudulent.", "This is a scam.", "This is legitimate."),
+                ("The proposal is legitimate.", "The proposal is safe.", "The proposal is a scam."),
+                ("The proposal is fraudulent.", "The proposal is fraudulent.", "The proposal is not fraudulent."),
+                ("The proposal is not fraudulent.", "The proposal is not fraudulent.", "The proposal is fraudulent."),
+                ("The audit must finish before deployment.", "Deployment requires the audit to finish first.", "Deployment does not require an audit."),
+                ("Voting closes on 2026-09-01.", "The vote ends on 2026-09-01.", "The vote ends on 2026-09-10."),
+                ("The quorum is 100000 tokens.", "A 100000 token quorum is required.", "A 10000 token quorum is required."),
+                ("The treasury sends 250 USDC to the contributor.", "The contributor receives 250 USDC from the treasury.", "The treasury sends 2500 USDC to the contributor."),
+                ("The claim has no supporting evidence.", "There is no evidence supporting the claim.", "The claim has supporting evidence."),
+                ("The bridge has not completed an audit.", "The bridge has not completed its audit.", "The bridge has completed its audit."),
+                ("The contract upgrade is approved.", "The upgrade is approved.", "The upgrade is not approved."),
+                ("The funds remain in the treasury.", "Treasury funds remain in place.", "The funds are transferred from the treasury."),
+                ("The proposal author disclosed the conflict.", "The conflict was disclosed by the author.", "The author concealed the conflict."),
+                ("The payment recipient is verified.", "The recipient is verified.", "The recipient is not verified."),
+            ];
+
+            let truth_tokens = ["The", "claim", "has", "no", "supporting", "evidence."];
+            let contradictory_tokens = ["The", "claim", "has", "supporting", "evidence."];
+            let equivalent_tokens = ["There", "is", "no", "evidence", "supporting", "the", "claim."];
+            assert!(has_polarity_conflict(&contradictory_tokens, &truth_tokens));
+            assert!(!has_polarity_conflict(&equivalent_tokens, &truth_tokens));
+
+            for (truth, good, bad) in cases {
+                let good_score = score_pair(truth, good);
+                let bad_score = score_pair(truth, bad);
+                assert!(
+                    good_score > bad_score,
+                    "expected good ({good_score}) > bad ({bad_score}) for truth: {truth}"
+                );
+            }
         }
 
         #[test]

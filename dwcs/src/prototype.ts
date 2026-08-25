@@ -26,22 +26,111 @@ function tokenize(s: string): string[] {
   return s.split(/\s+/).filter(Boolean);
 }
 
+function isAsciiPunctuation(code: number): boolean {
+  return (
+    (code >= 33 && code <= 47) ||
+    (code >= 58 && code <= 64) ||
+    (code >= 91 && code <= 96) ||
+    (code >= 123 && code <= 126)
+  );
+}
+
+function normalizedToken(token: string): string {
+  let start = 0;
+  let end = token.length;
+  while (start < end && isAsciiPunctuation(token.charCodeAt(start))) start++;
+  while (end > start && isAsciiPunctuation(token.charCodeAt(end - 1))) end--;
+  return token.slice(start, end);
+}
+
+function equalToken(a: string, b: string): boolean {
+  return normalizedToken(a).toLowerCase() === normalizedToken(b).toLowerCase();
+}
+
+function matchesAny(token: string, candidates: string[]): boolean {
+  return candidates.some((candidate) => equalToken(token, candidate));
+}
+
+function isFraudTerm(token: string): boolean {
+  return matchesAny(token, ["fraud", "fraudulent", "scam", "scammed", "scamming"]);
+}
+
+function isSafeTerm(token: string): boolean {
+  return matchesAny(token, ["safe", "legitimate", "legit", "valid", "authentic"]);
+}
+
+function semanticEqual(a: string, b: string): boolean {
+  return equalToken(a, b) || (isFraudTerm(a) && isFraudTerm(b)) || (isSafeTerm(a) && isSafeTerm(b));
+}
+
+function isOpposite(a: string, b: string): boolean {
+  const disclosurePair =
+    (matchesAny(a, ["disclose", "disclosed", "disclosure"]) &&
+      matchesAny(b, ["conceal", "concealed", "hide", "hidden"])) ||
+    (matchesAny(b, ["disclose", "disclosed", "disclosure"]) &&
+      matchesAny(a, ["conceal", "concealed", "hide", "hidden"]));
+  const approvalPair =
+    (matchesAny(a, ["approve", "approved", "approval"]) &&
+      matchesAny(b, ["reject", "rejected", "deny", "denied"])) ||
+    (matchesAny(b, ["approve", "approved", "approval"]) &&
+      matchesAny(a, ["reject", "rejected", "deny", "denied"]));
+  return disclosurePair || approvalPair || (isFraudTerm(a) && isSafeTerm(b)) || (isFraudTerm(b) && isSafeTerm(a));
+}
+
+function isNegation(token: string): boolean {
+  return matchesAny(token, ["no", "not", "never", "without", "cannot", "cant", "false"]);
+}
+
+function isNegated(tokens: string[], index: number): boolean {
+  return (index > 0 && isNegation(tokens[index - 1])) || (index > 1 && isNegation(tokens[index - 2]));
+}
+
+function hasPolarityConflict(answer: string[], truth: string[]): boolean {
+  return answer.some(
+    (answerToken, answerIndex) =>
+      !isNegation(answerToken) &&
+      truth.some(
+        (truthToken, truthIndex) =>
+          semanticEqual(answerToken, truthToken) && isNegated(answer, answerIndex) !== isNegated(truth, truthIndex)
+      )
+  );
+}
+
+function isNumericToken(token: string): boolean {
+  const normalized = normalizedToken(token);
+  return /\d/.test(normalized) && /^[\d,.$%]+$/.test(normalized);
+}
+
+function numericEqual(a: string, b: string): boolean {
+  const compactA = normalizedToken(a).replace(/[^\d.]/g, "");
+  const compactB = normalizedToken(b).replace(/[^\d.]/g, "");
+  return compactA.length > 0 && compactA === compactB;
+}
+
+function hasNumericConflict(answer: string[], truth: string[]): boolean {
+  const answerNumbers = answer.filter(isNumericToken);
+  const truthNumbers = truth.filter(isNumericToken);
+  return answerNumbers.length > 0 && truthNumbers.length > 0 && answerNumbers.some((number) => !truthNumbers.some((truthNumber) => numericEqual(number, truthNumber)));
+}
+
+function hasLexicalOpposition(answer: string[], truth: string[]): boolean {
+  return answer.some((answerToken) => truth.some((truthToken) => isOpposite(answerToken, truthToken)));
+}
+
 function wordOverlap(answer: string[], truth: string[]): number {
   if (answer.length === 0) return 0;
-  const truthLower = new Set(truth.map((w) => w.toLowerCase()));
-  const matched = answer.filter((w) => truthLower.has(w.toLowerCase())).length;
+  const matched = answer.filter((w) => truth.some((truthWord) => semanticEqual(w, truthWord))).length;
   return matched / answer.length;
 }
 
 function stopwordWeightedOverlap(answer: string[], truth: string[]): number {
   if (answer.length === 0) return 0;
-  const truthLower = new Set(truth.map((w) => w.toLowerCase()));
   let matchedWeight = 0;
   let totalWeight = 0;
   for (const w of answer) {
-    const weight = STOPWORDS.has(w.toLowerCase()) ? 0.3 : 1.0;
+    const weight = STOPWORDS.has(normalizedToken(w).toLowerCase()) ? 0.3 : 1.0;
     totalWeight += weight;
-    if (truthLower.has(w.toLowerCase())) matchedWeight += weight;
+    if (truth.some((truthWord) => semanticEqual(w, truthWord))) matchedWeight += weight;
   }
   return totalWeight === 0 ? 0 : matchedWeight / totalWeight;
 }
@@ -57,8 +146,7 @@ function bigramJaccard(answer: string[], truth: string[]): number {
     for (let j = 0; j < tBigrams; j++) {
       if (used[j]) continue;
       if (
-        answer[i].toLowerCase() === truth[j].toLowerCase() &&
-        answer[i + 1].toLowerCase() === truth[j + 1].toLowerCase()
+        semanticEqual(answer[i], truth[j]) && semanticEqual(answer[i + 1], truth[j + 1])
       ) {
         used[j] = true;
         matched++;
@@ -78,7 +166,7 @@ function lcsRatio(answer: string[], truth: string[]): number {
   const dp: number[][] = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
   for (let i = 1; i <= n; i++) {
     for (let j = 1; j <= m; j++) {
-      if (answer[i - 1].toLowerCase() === truth[j - 1].toLowerCase()) {
+      if (semanticEqual(answer[i - 1], truth[j - 1])) {
         dp[i][j] = dp[i - 1][j - 1] + 1;
       } else {
         dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
@@ -147,13 +235,20 @@ export function scorePairWithBreakdown(groundTruth: string, minerAnswer: string)
   const avg = mean(metrics);
   const v = variance(metrics, avg);
 
+  let finalScore = combine(metrics);
+  if (hasPolarityConflict(answerWords, truthWords) || hasLexicalOpposition(answerWords, truthWords)) {
+    finalScore *= 0.3;
+  } else if (hasNumericConflict(answerWords, truthWords)) {
+    finalScore *= 0.45;
+  }
+
   return {
     wordOverlap: metrics[0],
     stopwordWeightedOverlap: metrics[1],
     bigramJaccard: metrics[2],
     lcsRatio: metrics[3],
     variance: v,
-    finalScore: combine(metrics),
+    finalScore,
   };
 }
 
