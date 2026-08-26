@@ -23,6 +23,8 @@
 
 #![cfg_attr(target_arch = "wasm32", no_std)]
 
+pub mod embeddings;
+
 #[cfg(target_arch = "wasm32")]
 use core::panic::PanicInfo;
 
@@ -319,6 +321,61 @@ pub mod scoring {
         covered as f32 / count as f32
     }
 
+    /// Bounded no_std square root for vector norms.
+    fn sqrt_f32(x: f32) -> f32 {
+        if x <= 0.0 { return 0.0; }
+        let mut guess = if x > 1.0 { x } else { 1.0 };
+        for _ in 0..24 { guess = 0.5 * (guess + x / guess); }
+        guess
+    }
+
+    /// Soft semantic coverage in the champion's style: each ground-truth
+    /// content word may earn limited credit from its best embedded answer
+    /// synonym. This is deliberately capped and only augments recall, so
+    /// topical similarity cannot replace answer-bearing content.
+    fn semantic_coverage(answer: &[&str], truth: &[&str]) -> f32 {
+        let mut total = 0usize;
+        let mut covered = 0.0f32;
+        for t in truth {
+            if is_stopword(t) {
+                continue;
+            }
+            total += 1;
+            let Some(tv) = crate::embeddings::lookup(t) else { continue; };
+            let tnorm = vector_norm(&tv);
+            if tnorm == 0.0 { continue; }
+            let mut best = 0.0f32;
+            for a in answer {
+                if is_stopword(a) { continue; }
+                let Some(av) = crate::embeddings::lookup(a) else { continue; };
+                let anorm = vector_norm(&av);
+                if anorm == 0.0 { continue; }
+                let c = vector_dot(&tv, &av) / (tnorm * anorm);
+                if c > best { best = c; }
+            }
+            // Champion-style thresholded squared soft credit. Cap the
+            // semantic contribution so it cannot invent a complete answer.
+            if best > SEMANTIC_MIN {
+                let x = (best - SEMANTIC_MIN) / (1.0 - SEMANTIC_MIN);
+                covered += SEMANTIC_CAP * x * x;
+            }
+        }
+        if total == 0 { 0.0 } else { covered / total as f32 }
+    }
+
+    fn vector_dot(a: &[f32; crate::embeddings::D], b: &[f32; crate::embeddings::D]) -> f32 {
+        let mut sum = 0.0f32;
+        for i in 0..crate::embeddings::D { sum += a[i] * b[i]; }
+        sum
+    }
+
+    fn vector_norm(a: &[f32; crate::embeddings::D]) -> f32 {
+        sqrt_f32(vector_dot(a, a))
+    }
+
+    const SEMANTIC_MIN: f32 = 0.72;
+    const SEMANTIC_CAP: f32 = 0.35;
+
     /// Same idea as word_overlap, but stopwords count for less, so an
     /// answer can't inflate its score by padding with function words.
     fn stopword_weighted_overlap(answer: &[&str], truth: &[&str]) -> f32 {
@@ -534,7 +591,9 @@ pub mod scoring {
         let answer = &a_buf[..a_n];
         let truth = &t_buf[..t_n];
 
-        let coverage = gt_coverage(answer, truth);
+        let lexical_coverage = gt_coverage(answer, truth);
+        let semantic_coverage = semantic_coverage(answer, truth);
+        let coverage = lexical_coverage.max((lexical_coverage + semantic_coverage).min(1.0));
         let metrics = [
             word_overlap(answer, truth),
             stopword_weighted_overlap(answer, truth),
@@ -723,6 +782,17 @@ pub mod scoring {
             let correct = "Voting closes after a quorum of 100000 tokens.";
             let wrong = "Voting closes after a quorum of 50000 tokens.";
             assert!(score_pair(truth, correct) > score_pair(truth, wrong));
+        }
+
+        #[test]
+        fn semantic_coverage_path_preserves_range_and_order() {
+            let gt = "Two factor authentication requires a password and a second device.";
+            let good = "Use your password and phone to authenticate.";
+            let bad = "The weather forecast is sunny today.";
+            let good_score = score_pair(gt, good);
+            let bad_score = score_pair(gt, bad);
+            assert!(good_score > bad_score);
+            assert!(good_score <= 1.0 && bad_score >= 0.0);
         }
 
         #[test]
