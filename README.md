@@ -17,13 +17,15 @@ Disagreement-Weighted Canonical Scoring is a standalone WASM scoring module for 
 
 It combines normalized word overlap, stopword-weighted overlap, bigram Jaccard similarity, and longest-common-subsequence ratio. When those metrics disagree, the final score is dampened to reduce the benefit of keyword stuffing or other shallow answer imitation.
 
-The deployed interface returns one `f32` score from `0` to `1`. It has no network access, filesystem access, or persistent state.
+Its runtime interface returns one `f32` score from `0` to `1`. It has no network access, filesystem access, or persistent state.
 
 ### Sentinel
 
-Sentinel is the application layer. It sends a governance proposal to real Telegraph Miners, pays through x402, verifies the resulting `signal_hash` receipt, and compares answers across Miners.
+Sentinel is the application layer. It reads active proposals from the public `balancer.eth` Snapshot space, submits them to real Telegraph Miners through x402, verifies the resulting `signal_hash` receipts, and compares answers across Miners.
 
 High agreement increases confidence. Low agreement indicates that the proposal should receive human review.
+
+The x402 settlement is Sentinel's Layer 1 on-chain evidence. Layer 2, an external governance-contract flag write, is deliberately excluded because Snapshot spaces do not expose a universal, verified flagging interface.
 
 ## Repository
 
@@ -35,9 +37,9 @@ dwcs/canaries/        Local held-out adversarial cases
 scripts/              Build and validation helpers
 ```
 
-## Validation
+## Verified locally
 
-DWCS is built for `wasm32-unknown-unknown` and validated as a zero-import WASM module. The repository includes Rust and TypeScript tests for its deterministic scoring logic and Sentinel's agreement-based triage behavior.
+DWCS is built for `wasm32-unknown-unknown` and validated as a zero-import WASM module. The repository includes Rust and TypeScript tests for its deterministic scoring logic, Snapshot ingestion, and Sentinel's agreement-based triage behavior. Live Miner requests, x402 payments, and DWCS registration require the designated funded wallet and are not represented as completed here.
 
 ## Safety boundaries
 

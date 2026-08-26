@@ -10,11 +10,9 @@
  * miners" with a real on-chain artifact. No extra code needed beyond what
  * telegraph_client.ts already does.
  *
- * Layer 2 (our own addition, still an open decision): an explicit "flag
- * this governance proposal" write to whatever DAO/governance contract the
- * chosen document stream (PROJECT_SPEC.md Section 5.2) actually uses.
- * Telegraph does not provide this, it is not a documentation gap, it's a
- * real scope item that depends on picking a specific governance target.
+ * Layer 2 (our own addition) is intentionally not implemented for the
+ * selected Snapshot document stream. Snapshot spaces do not expose a common
+ * governance-contract flag write. Telegraph does not provide one either.
  * Do not implement this against a guessed contract interface.
  */
 
@@ -47,22 +45,17 @@ export interface Layer2ActionResult {
 }
 
 /**
- * Layer 2: NOT IMPLEMENTED. Blocked on choosing a specific governance
- * contract/interface once the document stream (PROJECT_SPEC.md Section
- * 5.2) is finalized. This is a real product decision, not something to
- * guess your way past, different DAOs expose completely different
- * governance contract shapes (Governor Bravo-style, Snapshot + a custom
- * execution module, a bespoke contract, etc).
+ * Layer 2: NOT IMPLEMENTED. The selected Snapshot source has no universal
+ * contract interface for flags. A future Layer 2 requires an explicit new
+ * target and a verified interface.
  */
 export async function executeLayer2GovernanceFlag(
   _proposal: GovernanceProposal,
   _decision: TriageDecision
 ): Promise<Layer2ActionResult> {
   throw new Error(
-    "Not implemented: Layer 2 governance-contract flag action depends on " +
-    "which specific governance target Sentinel is built against. Decide " +
-    "the document stream/target contract first (PROJECT_SPEC.md Section " +
-    "5.2), then implement against that contract's real interface, never " +
-    "a guessed one."
+    "Not implemented: the selected Snapshot source does not expose a " +
+    "universal governance-contract flag action. A future integration needs " +
+    "an explicit target and verified contract interface."
   );
 }
