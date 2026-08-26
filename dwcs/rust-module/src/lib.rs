@@ -175,6 +175,98 @@ pub mod scoring {
         stem(trim_punct(a)).eq_ignore_ascii_case(stem(trim_punct(b)))
     }
 
+    fn matches_any(w: &str, candidates: &[&str]) -> bool {
+        candidates.iter().any(|candidate| eq_norm(w, candidate))
+    }
+
+    fn is_fraud_term(w: &str) -> bool {
+        matches_any(w, &["fraud", "fraudulent", "scam", "scammed", "scamming"])
+    }
+
+    fn is_safe_term(w: &str) -> bool {
+        matches_any(w, &["safe", "legitimate", "legit", "valid", "authentic"])
+    }
+
+    fn semantic_eq(a: &str, b: &str) -> bool {
+        eq_norm(a, b) || (is_fraud_term(a) && is_fraud_term(b)) || (is_safe_term(a) && is_safe_term(b))
+    }
+
+    fn is_opposite(a: &str, b: &str) -> bool {
+        let disclosure = (matches_any(a, &["disclose", "disclosed", "disclosure"])
+            && matches_any(b, &["conceal", "concealed", "hide", "hidden"]))
+            || (matches_any(b, &["disclose", "disclosed", "disclosure"])
+                && matches_any(a, &["conceal", "concealed", "hide", "hidden"]));
+        let approval = (matches_any(a, &["approve", "approved", "approval"])
+            && matches_any(b, &["reject", "rejected", "deny", "denied"]))
+            || (matches_any(b, &["approve", "approved", "approval"])
+                && matches_any(a, &["reject", "rejected", "deny", "denied"]));
+        let risk = (is_fraud_term(a) && is_safe_term(b)) || (is_fraud_term(b) && is_safe_term(a));
+        disclosure || approval || risk
+    }
+
+    fn is_negation(w: &str) -> bool {
+        matches_any(w, &["no", "not", "never", "without", "cannot", "cant", "false"])
+    }
+
+    fn is_numeric_token(w: &str) -> bool {
+        let normalized = trim_punct(w);
+        let mut saw_digit = false;
+        for byte in normalized.bytes() {
+            if byte.is_ascii_digit() { saw_digit = true; }
+            else if !matches!(byte, b',' | b'.' | b'%' | b'$') { return false; }
+        }
+        saw_digit
+    }
+
+    fn numeric_eq(a: &str, b: &str) -> bool {
+        let mut aa = [0u8; 32];
+        let mut bb = [0u8; 32];
+        let mut an = 0usize;
+        let mut bn = 0usize;
+        for byte in trim_punct(a).bytes() {
+            if byte.is_ascii_digit() || byte == b'.' {
+                if an == aa.len() { return false; }
+                aa[an] = byte; an += 1;
+            }
+        }
+        for byte in trim_punct(b).bytes() {
+            if byte.is_ascii_digit() || byte == b'.' {
+                if bn == bb.len() { return false; }
+                bb[bn] = byte; bn += 1;
+            }
+        }
+        an > 0 && an == bn && aa[..an] == bb[..bn]
+    }
+
+    fn is_negated(tokens: &[&str], index: usize) -> bool {
+        (index > 0 && is_negation(tokens[index - 1]))
+            || (index > 1 && is_negation(tokens[index - 2]))
+    }
+
+    fn has_polarity_conflict(answer: &[&str], truth: &[&str]) -> bool {
+        for (ai, aw) in answer.iter().enumerate() {
+            if is_negation(aw) { continue; }
+            for (ti, tw) in truth.iter().enumerate() {
+                if semantic_eq(aw, tw) && is_negated(answer, ai) != is_negated(truth, ti) {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    fn has_numeric_conflict(answer: &[&str], truth: &[&str]) -> bool {
+        let mut answer_numbers = answer.iter().filter(|w| is_numeric_token(w));
+        if !answer.iter().any(|w| is_numeric_token(w)) || !truth.iter().any(|w| is_numeric_token(w)) {
+            return false;
+        }
+        answer_numbers.any(|a| !truth.iter().any(|t| numeric_eq(a, t)))
+    }
+
+    fn has_lexical_opposition(answer: &[&str], truth: &[&str]) -> bool {
+        answer.iter().any(|a| truth.iter().any(|t| is_opposite(a, t)))
+    }
+
     /// Splits on whitespace into at most MAX_WORDS slices, returns the count.
     fn tokenize<'a>(s: &'a str, buf: &mut [&'a str; MAX_WORDS]) -> usize {
         let mut n = 0;
@@ -198,7 +290,7 @@ pub mod scoring {
         }
         let mut matched = 0u32;
         for w in answer {
-            if truth.iter().any(|t| eq_norm(t, w)) {
+            if truth.iter().any(|t| semantic_eq(t, w)) {
                 matched += 1;
             }
         }
@@ -238,7 +330,7 @@ pub mod scoring {
         for w in answer {
             let weight = if is_stopword(w) { 0.3 } else { 1.0 };
             total_weight += weight;
-            if truth.iter().any(|t| eq_norm(t, w)) {
+            if truth.iter().any(|t| semantic_eq(t, w)) {
                 matched_weight += weight;
             }
         }
@@ -451,7 +543,14 @@ pub mod scoring {
             lcs_ratio(answer, truth),
         ];
 
-        combine(metrics, coverage)
+        let mut score = combine(metrics, coverage);
+        if has_polarity_conflict(answer, truth)
+            || has_numeric_conflict(answer, truth)
+            || has_lexical_opposition(answer, truth)
+        {
+            score *= 0.5;
+        }
+        score.clamp(0.0, 1.0)
     }
 
     #[cfg(test)]
@@ -605,6 +704,25 @@ pub mod scoring {
             let answer = "Authenticating yourself needs your password plus your phone.";
             let unrelated = "The weather is nice today.";
             assert!(score_pair(gt, answer) > score_pair(gt, unrelated));
+        }
+
+        #[test]
+        fn contradictions_are_penalized_without_breaking_ordering() {
+            let truth = "The proposal is safe and approves the transfer of 5000 USDC.";
+            let correct = "The proposal is legitimate and approves the transfer of 5000 USDC.";
+            let opposite = "The proposal is fraudulent and rejects the transfer of 5000 USDC.";
+            let correct_score = score_pair(truth, correct);
+            let opposite_score = score_pair(truth, opposite);
+            assert!(correct_score > opposite_score,
+                "correct ({correct_score}) must beat contradiction ({opposite_score})");
+        }
+
+        #[test]
+        fn numeric_contradiction_is_lower_than_matching_number() {
+            let truth = "The quorum requires 100000 tokens before voting closes.";
+            let correct = "Voting closes after a quorum of 100000 tokens.";
+            let wrong = "Voting closes after a quorum of 50000 tokens.";
+            assert!(score_pair(truth, correct) > score_pair(truth, wrong));
         }
 
         #[test]
