@@ -68,4 +68,39 @@ describe("scorePair (TS prototype, mirrors dwcs/rust-module/src/lib.rs)", () => 
       expect(scorePair(truth, good)).toBeGreaterThan(scorePair(truth, bad));
     }
   });
+
+  it("orders broader local fraud-detection diagnostics", () => {
+    // Local correctness fixtures only. They are not Miner data and are never
+    // sent to Telegraph.
+    const cases: Array<[string, string, string]> = [
+      ["The proposal is a scam.", "The proposal is fraudulent.", "The proposal is legitimate."],
+      ["The proposal is legitimate.", "The proposal is authentic.", "The proposal is fraudulent."],
+      ["The proposal is not fraudulent.", "This is not a scam.", "This is a scam."],
+      ["The proposal has not completed an audit.", "No audit has been completed for the proposal.", "The proposal has completed an audit."],
+      ["The contract does not meet the required quorum.", "The required quorum is not met by the contract.", "The contract meets the required quorum."],
+      ["The payment is not approved.", "No approval exists for the payment.", "The payment is approved."],
+      ["The vote ends on 2026-09-01.", "Voting closes on 2026-09-01.", "Voting closes on 2026-09-10."],
+      ["The vote ends on 2026-09-01.", "The vote ends on September 1, 2026.", "The vote ends on September 10, 2026."],
+      ["The proposal transfers 5,000 USDC to Alice.", "Alice receives 5000 USDC from the proposal.", "Alice receives 50,000 USDC from the proposal."],
+      ["The proposal transfers 250 USDC to Bob.", "Bob receives $250 USDC.", "Bob receives $25 USDC."],
+      ["The treasury retains 100 ETH.", "100 ETH remains in the treasury.", "10 ETH remains in the treasury."],
+      ["Alice is the payment recipient.", "The recipient is Alice.", "The recipient is Bob."],
+      ["The bridge contract is audited by Firm A.", "Firm A audited the bridge contract.", "Firm B audited the bridge contract."],
+      ["The proposal author disclosed a conflict of interest.", "A conflict was disclosed by the author.", "The author concealed the conflict."],
+      ["The recipient is verified.", "Verification has been completed for the recipient.", "The recipient is unverified."],
+      ["There is no supporting evidence for the claim.", "The claim has no evidence supporting it.", "The claim has supporting evidence."],
+      ["The proposal has supporting evidence.", "Evidence supports the proposal.", "The proposal lacks supporting evidence."],
+      ["The audit report is fabricated.", "The audit report is fraudulent.", "The audit report is authentic."],
+      ["The claim is false.", "The claim is not true.", "The claim is true."],
+      ["The contract upgrade is rejected.", "The upgrade was denied.", "The upgrade was approved."],
+      ["The funds remain in the treasury.", "The treasury keeps the funds.", "The funds leave the treasury."],
+      ["The proposal does not authorize a transfer.", "No transfer is authorized by the proposal.", "The proposal authorizes a transfer."],
+      ["The multisig requires three signatures.", "Three signatures are required by the multisig.", "Two signatures are required by the multisig."],
+      ["The deadline is 48 hours.", "The deadline lasts for 48 hours.", "The deadline lasts for 24 hours."],
+    ];
+
+    for (const [truth, good, bad] of cases) {
+      expect(scorePair(truth, good)).toBeGreaterThan(scorePair(truth, bad));
+    }
+  });
 });

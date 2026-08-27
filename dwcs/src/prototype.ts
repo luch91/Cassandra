@@ -52,15 +52,32 @@ function matchesAny(token: string, candidates: string[]): boolean {
 }
 
 function isFraudTerm(token: string): boolean {
-  return matchesAny(token, ["fraud", "fraudulent", "scam", "scammed", "scamming"]);
+  return matchesAny(token, ["fraud", "fraudulent", "scam", "scammed", "scamming", "fabricated", "fake"]);
 }
 
 function isSafeTerm(token: string): boolean {
   return matchesAny(token, ["safe", "legitimate", "legit", "valid", "authentic"]);
 }
 
+function sameTermGroup(a: string, b: string, terms: string[]): boolean {
+  return matchesAny(a, terms) && matchesAny(b, terms);
+}
+
 function semanticEqual(a: string, b: string): boolean {
-  return equalToken(a, b) || (isFraudTerm(a) && isFraudTerm(b)) || (isSafeTerm(a) && isSafeTerm(b));
+  return (
+    equalToken(a, b) ||
+    (isFraudTerm(a) && isFraudTerm(b)) ||
+    (isSafeTerm(a) && isSafeTerm(b)) ||
+    sameTermGroup(a, b, ["complete", "completed", "completes", "completion"]) ||
+    sameTermGroup(a, b, ["meet", "meets", "met", "meeting"]) ||
+    sameTermGroup(a, b, ["verify", "verified", "verification"]) ||
+    sameTermGroup(a, b, ["support", "supports", "supported", "supporting"]) ||
+    sameTermGroup(a, b, ["authorize", "authorizes", "authorized", "authorization"]) ||
+    sameTermGroup(a, b, ["approve", "approved", "approval"]) ||
+    sameTermGroup(a, b, ["remain", "remains", "retains", "retain", "keeps", "keep"]) ||
+    sameTermGroup(a, b, ["transfer", "transfers", "transferred", "transferring"]) ||
+    (isNegation(a) && isNegation(b))
+  );
 }
 
 function isOpposite(a: string, b: string): boolean {
@@ -74,7 +91,17 @@ function isOpposite(a: string, b: string): boolean {
       matchesAny(b, ["reject", "rejected", "deny", "denied"])) ||
     (matchesAny(b, ["approve", "approved", "approval"]) &&
       matchesAny(a, ["reject", "rejected", "deny", "denied"]));
-  return disclosurePair || approvalPair || (isFraudTerm(a) && isSafeTerm(b)) || (isFraudTerm(b) && isSafeTerm(a));
+  const verificationPair =
+    (matchesAny(a, ["verify", "verified", "verification"]) && matchesAny(b, ["unverified", "unverifiable"])) ||
+    (matchesAny(b, ["verify", "verified", "verification"]) && matchesAny(a, ["unverified", "unverifiable"]));
+  const evidencePair =
+    (matchesAny(a, ["support", "supports", "supported", "supporting", "has"]) && matchesAny(b, ["lack", "lacks", "lacking", "without"])) ||
+    (matchesAny(b, ["support", "supports", "supported", "supporting", "has"]) && matchesAny(a, ["lack", "lacks", "lacking", "without"]));
+  const custodyPair =
+    (matchesAny(a, ["remain", "remains", "retains", "retain", "keeps", "keep"]) && matchesAny(b, ["leave", "leaves", "left", "withdraw", "withdrawn"])) ||
+    (matchesAny(b, ["remain", "remains", "retains", "retain", "keeps", "keep"]) && matchesAny(a, ["leave", "leaves", "left", "withdraw", "withdrawn"]));
+  const truthPair = (matchesAny(a, ["true"]) && matchesAny(b, ["false"])) || (matchesAny(b, ["true"]) && matchesAny(a, ["false"]));
+  return disclosurePair || approvalPair || verificationPair || evidencePair || custodyPair || truthPair || (isFraudTerm(a) && isSafeTerm(b)) || (isFraudTerm(b) && isSafeTerm(a));
 }
 
 function isNegation(token: string): boolean {
@@ -82,16 +109,30 @@ function isNegation(token: string): boolean {
 }
 
 function isNegated(tokens: string[], index: number): boolean {
-  return (index > 0 && isNegation(tokens[index - 1])) || (index > 1 && isNegation(tokens[index - 2]));
+  return tokens.slice(Math.max(0, index - 4), index).some(isNegation);
+}
+
+function isPolaritySensitive(token: string): boolean {
+  return isFraudTerm(token) || isSafeTerm(token) || matchesAny(token, [
+    "complete", "completed", "completes", "completion",
+    "meet", "meets", "met", "meeting",
+    "approve", "approved", "approval",
+    "authorize", "authorizes", "authorized", "authorization",
+    "verify", "verified", "verification", "unverified", "unverifiable",
+    "transfer", "transfers", "transferred", "transferring",
+    "support", "supports", "supported", "supporting",
+  ]);
 }
 
 function hasPolarityConflict(answer: string[], truth: string[]): boolean {
   return answer.some(
     (answerToken, answerIndex) =>
-      !isNegation(answerToken) &&
+      isPolaritySensitive(answerToken) &&
       truth.some(
         (truthToken, truthIndex) =>
-          semanticEqual(answerToken, truthToken) && isNegated(answer, answerIndex) !== isNegated(truth, truthIndex)
+          isPolaritySensitive(truthToken) &&
+          semanticEqual(answerToken, truthToken) &&
+          isNegated(answer, answerIndex) !== isNegated(truth, truthIndex)
       )
   );
 }
@@ -114,7 +155,75 @@ function hasNumericConflict(answer: string[], truth: string[]): boolean {
 }
 
 function hasLexicalOpposition(answer: string[], truth: string[]): boolean {
-  return answer.some((answerToken) => truth.some((truthToken) => isOpposite(answerToken, truthToken)));
+  return answer.some((answerToken, answerIndex) =>
+    truth.some((truthToken, truthIndex) =>
+      isOpposite(answerToken, truthToken) && isNegated(answer, answerIndex) === isNegated(truth, truthIndex)
+    )
+  );
+}
+
+interface DateParts { year: number; month: number; day: number; }
+
+function parseDigits(token: string): number | undefined {
+  const normalized = normalizedToken(token);
+  if (!/^[\d\p{P}]+$/u.test(normalized)) return undefined;
+  const digits = normalized.replace(/\D/g, "");
+  return digits ? Number(digits) : undefined;
+}
+
+function monthNumber(token: string): number | undefined {
+  const months: Record<string, number> = {
+    january: 1, february: 2, march: 3, april: 4, may: 5, june: 6,
+    july: 7, august: 8, september: 9, october: 10, november: 11, december: 12,
+  };
+  return months[normalizedToken(token).toLowerCase()];
+}
+
+function parseIsoDate(token: string): DateParts | undefined {
+  const normalized = normalizedToken(token);
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(normalized);
+  if (!match) return undefined;
+  const [, yearText, monthText, dayText] = match;
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+  return month >= 1 && month <= 12 && day >= 1 && day <= 31 ? { year, month, day } : undefined;
+}
+
+function findDate(tokens: string[]): DateParts | undefined {
+  for (const token of tokens) {
+    const date = parseIsoDate(token);
+    if (date) return date;
+  }
+  for (let index = 0; index < tokens.length; index++) {
+    const month = monthNumber(tokens[index]);
+    if (!month) continue;
+    let year: number | undefined;
+    let day: number | undefined;
+    for (const token of tokens.slice(Math.max(0, index - 2), Math.min(tokens.length, index + 3))) {
+      const value = parseDigits(token);
+      if (value === undefined) continue;
+      if (value >= 1000) year = value;
+      else if (value >= 1 && value <= 31) day = value;
+    }
+    if (year !== undefined && day !== undefined) return { year, month, day };
+  }
+  return undefined;
+}
+
+function hasDateConflict(answer: string[], truth: string[]): boolean {
+  const answerDate = findDate(answer);
+  const truthDate = findDate(truth);
+  return Boolean(answerDate && truthDate && (answerDate.year !== truthDate.year || answerDate.month !== truthDate.month || answerDate.day !== truthDate.day));
+}
+
+function semanticOverlapF1(answer: string[], truth: string[]): number {
+  const answerContent = answer.filter((word) => !STOPWORDS.has(normalizedToken(word).toLowerCase()));
+  const truthContent = truth.filter((word) => !STOPWORDS.has(normalizedToken(word).toLowerCase()));
+  if (answerContent.length === 0 || truthContent.length === 0) return 0;
+  const precision = answerContent.filter((word) => truth.some((truthWord) => semanticEqual(word, truthWord))).length / answerContent.length;
+  const recall = truthContent.filter((word) => answer.some((answerWord) => semanticEqual(word, answerWord))).length / truthContent.length;
+  return precision + recall === 0 ? 0 : (2 * precision * recall) / (precision + recall);
 }
 
 function wordOverlap(answer: string[], truth: string[]): number {
@@ -235,11 +344,19 @@ export function scorePairWithBreakdown(groundTruth: string, minerAnswer: string)
   const avg = mean(metrics);
   const v = variance(metrics, avg);
 
+  const polarityConflict = hasPolarityConflict(answerWords, truthWords);
+  const lexicalOpposition = hasLexicalOpposition(answerWords, truthWords);
+  const dateConflict = hasDateConflict(answerWords, truthWords);
+  const numericConflict = hasNumericConflict(answerWords, truthWords);
   let finalScore = combine(metrics);
-  if (hasPolarityConflict(answerWords, truthWords) || hasLexicalOpposition(answerWords, truthWords)) {
+  if (polarityConflict) {
     finalScore *= 0.3;
-  } else if (hasNumericConflict(answerWords, truthWords)) {
+  } else if (lexicalOpposition || dateConflict) {
+    finalScore *= 0.3;
+  } else if (numericConflict) {
     finalScore *= 0.45;
+  } else if (answerWords.some(isNegation) && truthWords.some(isNegation)) {
+    finalScore = Math.max(finalScore, semanticOverlapF1(answerWords, truthWords) * 0.5);
   }
 
   return {
