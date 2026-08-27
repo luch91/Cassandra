@@ -141,15 +141,53 @@ pub mod scoring {
     }
 
     fn is_fraud_term(w: &str) -> bool {
-        matches_any(w, &["fraud", "fraudulent", "scam", "scammed", "scamming"])
+        matches_any(
+            w,
+            &[
+                "fraud",
+                "fraudulent",
+                "scam",
+                "scammed",
+                "scamming",
+                "fabricated",
+                "fake",
+            ],
+        )
     }
 
     fn is_safe_term(w: &str) -> bool {
         matches_any(w, &["safe", "legitimate", "legit", "valid", "authentic"])
     }
 
+    fn same_term_group(a: &str, b: &str, terms: &[&str]) -> bool {
+        matches_any(a, terms) && matches_any(b, terms)
+    }
+
     fn semantic_eq(a: &str, b: &str) -> bool {
-        eq_ci(a, b) || (is_fraud_term(a) && is_fraud_term(b)) || (is_safe_term(a) && is_safe_term(b))
+        eq_ci(a, b)
+            || (is_fraud_term(a) && is_fraud_term(b))
+            || (is_safe_term(a) && is_safe_term(b))
+            || same_term_group(a, b, &["complete", "completed", "completes", "completion"])
+            || same_term_group(a, b, &["meet", "meets", "met", "meeting"])
+            || same_term_group(a, b, &["verify", "verified", "verification"])
+            || same_term_group(a, b, &["support", "supports", "supported", "supporting"])
+            || same_term_group(
+                a,
+                b,
+                &["authorize", "authorizes", "authorized", "authorization"],
+            )
+            || same_term_group(a, b, &["approve", "approved", "approval"])
+            || same_term_group(
+                a,
+                b,
+                &["remain", "remains", "retains", "retain", "keeps", "keep"],
+            )
+            || same_term_group(
+                a,
+                b,
+                &["transfer", "transfers", "transferred", "transferring"],
+            )
+            || (is_negation(a) && is_negation(b))
     }
 
     fn is_opposite(a: &str, b: &str) -> bool {
@@ -161,12 +199,45 @@ pub mod scoring {
             && matches_any(b, &["reject", "rejected", "deny", "denied"]))
             || (matches_any(b, &["approve", "approved", "approval"])
                 && matches_any(a, &["reject", "rejected", "deny", "denied"]));
-        let risk_pair = (is_fraud_term(a) && is_safe_term(b)) || (is_fraud_term(b) && is_safe_term(a));
-        disclosure_pair || approval_pair || risk_pair
+        let verification_pair = (matches_any(a, &["verify", "verified", "verification"])
+            && matches_any(b, &["unverified", "unverifiable"]))
+            || (matches_any(b, &["verify", "verified", "verification"])
+                && matches_any(a, &["unverified", "unverifiable"]));
+        let evidence_pair = (matches_any(
+            a,
+            &["support", "supports", "supported", "supporting", "has"],
+        ) && matches_any(b, &["lack", "lacks", "lacking", "without"]))
+            || (matches_any(
+                b,
+                &["support", "supports", "supported", "supporting", "has"],
+            ) && matches_any(a, &["lack", "lacks", "lacking", "without"]));
+        let custody_pair =
+            (matches_any(
+                a,
+                &["remain", "remains", "retains", "retain", "keeps", "keep"],
+            ) && matches_any(b, &["leave", "leaves", "left", "withdraw", "withdrawn"]))
+                || (matches_any(
+                    b,
+                    &["remain", "remains", "retains", "retain", "keeps", "keep"],
+                ) && matches_any(a, &["leave", "leaves", "left", "withdraw", "withdrawn"]));
+        let truth_pair = (matches_any(a, &["true"]) && matches_any(b, &["false"]))
+            || (matches_any(b, &["true"]) && matches_any(a, &["false"]));
+        let risk_pair =
+            (is_fraud_term(a) && is_safe_term(b)) || (is_fraud_term(b) && is_safe_term(a));
+        disclosure_pair
+            || approval_pair
+            || verification_pair
+            || evidence_pair
+            || custody_pair
+            || truth_pair
+            || risk_pair
     }
 
     fn is_negation(w: &str) -> bool {
-        matches_any(w, &["no", "not", "never", "without", "cannot", "cant", "false"])
+        matches_any(
+            w,
+            &["no", "not", "never", "without", "cannot", "cant", "false"],
+        )
     }
 
     fn is_numeric_token(w: &str) -> bool {
@@ -211,8 +282,46 @@ pub mod scoring {
     }
 
     fn is_negated(tokens: &[&str], index: usize) -> bool {
-        (index > 0 && is_negation(tokens[index - 1]))
-            || (index > 1 && is_negation(tokens[index - 2]))
+        let start = index.saturating_sub(4);
+        tokens[start..index].iter().any(|token| is_negation(token))
+    }
+
+    fn is_polarity_sensitive(w: &str) -> bool {
+        is_fraud_term(w)
+            || is_safe_term(w)
+            || matches_any(
+                w,
+                &[
+                    "complete",
+                    "completed",
+                    "completes",
+                    "completion",
+                    "meet",
+                    "meets",
+                    "met",
+                    "meeting",
+                    "approve",
+                    "approved",
+                    "approval",
+                    "authorize",
+                    "authorizes",
+                    "authorized",
+                    "authorization",
+                    "verify",
+                    "verified",
+                    "verification",
+                    "unverified",
+                    "unverifiable",
+                    "transfer",
+                    "transfers",
+                    "transferred",
+                    "transferring",
+                    "support",
+                    "supports",
+                    "supported",
+                    "supporting",
+                ],
+            )
     }
 
     fn has_polarity_conflict(answer: &[&str], truth: &[&str]) -> bool {
@@ -221,7 +330,9 @@ pub mod scoring {
                 continue;
             }
             for (truth_index, truth_word) in truth.iter().enumerate() {
-                if semantic_eq(answer_word, truth_word)
+                if is_polarity_sensitive(answer_word)
+                    && is_polarity_sensitive(truth_word)
+                    && semantic_eq(answer_word, truth_word)
                     && is_negated(answer, answer_index) != is_negated(truth, truth_index)
                 {
                     return true;
@@ -239,13 +350,160 @@ pub mod scoring {
             && answer
                 .iter()
                 .filter(|word| is_numeric_token(word))
-                .any(|answer_number| !truth.iter().any(|truth_number| numeric_eq(answer_number, truth_number)))
+                .any(|answer_number| {
+                    !truth
+                        .iter()
+                        .any(|truth_number| numeric_eq(answer_number, truth_number))
+                })
     }
 
     fn has_lexical_opposition(answer: &[&str], truth: &[&str]) -> bool {
-        answer
+        for (answer_index, answer_word) in answer.iter().enumerate() {
+            for (truth_index, truth_word) in truth.iter().enumerate() {
+                if is_opposite(answer_word, truth_word)
+                    && is_negated(answer, answer_index) == is_negated(truth, truth_index)
+                {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    #[derive(Copy, Clone, PartialEq, Eq)]
+    struct DateParts {
+        year: u16,
+        month: u8,
+        day: u8,
+    }
+
+    fn parse_digits(token: &str) -> Option<u16> {
+        let mut value = 0u16;
+        let mut saw_digit = false;
+        for byte in normalized_token(token).bytes() {
+            if byte.is_ascii_digit() {
+                saw_digit = true;
+                value = value.checked_mul(10)?.checked_add((byte - b'0') as u16)?;
+            } else if !byte.is_ascii_punctuation() {
+                return None;
+            }
+        }
+        if saw_digit {
+            Some(value)
+        } else {
+            None
+        }
+    }
+
+    fn month_number(token: &str) -> Option<u8> {
+        let months = [
+            ("january", 1),
+            ("february", 2),
+            ("march", 3),
+            ("april", 4),
+            ("may", 5),
+            ("june", 6),
+            ("july", 7),
+            ("august", 8),
+            ("september", 9),
+            ("october", 10),
+            ("november", 11),
+            ("december", 12),
+        ];
+        months.iter().find_map(|(name, number)| {
+            if eq_ci(token, name) {
+                Some(*number)
+            } else {
+                None
+            }
+        })
+    }
+
+    fn parse_iso_date(token: &str) -> Option<DateParts> {
+        let normalized = normalized_token(token);
+        let bytes = normalized.as_bytes();
+        if bytes.len() != 10 || bytes[4] != b'-' || bytes[7] != b'-' {
+            return None;
+        }
+        let year = parse_digits(&normalized[..4])?;
+        let month = parse_digits(&normalized[5..7])? as u8;
+        let day = parse_digits(&normalized[8..10])? as u8;
+        if (1..=12).contains(&month) && (1..=31).contains(&day) {
+            Some(DateParts { year, month, day })
+        } else {
+            None
+        }
+    }
+
+    fn find_date(tokens: &[&str]) -> Option<DateParts> {
+        for token in tokens {
+            if let Some(date) = parse_iso_date(token) {
+                return Some(date);
+            }
+        }
+        for (index, token) in tokens.iter().enumerate() {
+            let month = match month_number(token) {
+                Some(month) => month,
+                None => continue,
+            };
+            let start = index.saturating_sub(2);
+            let end = core::cmp::min(index + 3, tokens.len());
+            let mut year = None;
+            let mut day = None;
+            for candidate in &tokens[start..end] {
+                if let Some(value) = parse_digits(candidate) {
+                    if value >= 1000 {
+                        year = Some(value);
+                    } else if (1..=31).contains(&value) {
+                        day = Some(value as u8);
+                    }
+                }
+            }
+            if let (Some(year), Some(day)) = (year, day) {
+                return Some(DateParts { year, month, day });
+            }
+        }
+        None
+    }
+
+    fn has_date_conflict(answer: &[&str], truth: &[&str]) -> bool {
+        match (find_date(answer), find_date(truth)) {
+            (Some(answer_date), Some(truth_date)) => answer_date != truth_date,
+            _ => false,
+        }
+    }
+
+    fn has_negation(tokens: &[&str]) -> bool {
+        tokens.iter().any(|token| is_negation(token))
+    }
+
+    fn semantic_overlap_f1(answer: &[&str], truth: &[&str]) -> f32 {
+        let answer_content = answer.iter().filter(|word| !is_stopword(word)).count();
+        let truth_content = truth.iter().filter(|word| !is_stopword(word)).count();
+        if answer_content == 0 || truth_content == 0 {
+            return 0.0;
+        }
+        let answer_matches = answer
             .iter()
-            .any(|answer_word| truth.iter().any(|truth_word| is_opposite(answer_word, truth_word)))
+            .filter(|word| !is_stopword(word))
+            .filter(|word| truth.iter().any(|truth_word| semantic_eq(word, truth_word)))
+            .count();
+        let truth_matches = truth
+            .iter()
+            .filter(|word| !is_stopword(word))
+            .filter(|word| {
+                answer
+                    .iter()
+                    .any(|answer_word| semantic_eq(word, answer_word))
+            })
+            .count();
+        let precision = answer_matches as f32 / answer_content as f32;
+        let recall = truth_matches as f32 / truth_content as f32;
+        if precision + recall == 0.0 {
+            0.0
+        } else {
+            2.0 * precision * recall / (precision + recall)
+        }
     }
 
     /// Fraction of answer words that also appear anywhere in ground truth.
@@ -399,7 +657,10 @@ pub mod scoring {
         if miner_answer.trim().is_empty() {
             return 0.0;
         }
-        if ground_truth.trim().eq_ignore_ascii_case(miner_answer.trim()) {
+        if ground_truth
+            .trim()
+            .eq_ignore_ascii_case(miner_answer.trim())
+        {
             return 1.0;
         }
 
@@ -417,15 +678,25 @@ pub mod scoring {
             lcs_ratio(answer, truth),
         ];
 
-        let score = combine(metrics);
-        if has_polarity_conflict(answer, truth) {
+        let polarity_conflict = has_polarity_conflict(answer, truth);
+        let lexical_opposition = has_lexical_opposition(answer, truth);
+        let date_conflict = has_date_conflict(answer, truth);
+        let numeric_conflict = has_numeric_conflict(answer, truth);
+        let mut score = combine(metrics);
+        if polarity_conflict {
             return (score * 0.30).clamp(0.0, 1.0);
         }
-        if has_lexical_opposition(answer, truth) {
+        if lexical_opposition {
             return (score * 0.30).clamp(0.0, 1.0);
         }
-        if has_numeric_conflict(answer, truth) {
+        if date_conflict {
+            return (score * 0.30).clamp(0.0, 1.0);
+        }
+        if numeric_conflict {
             return (score * 0.45).clamp(0.0, 1.0);
+        }
+        if has_negation(answer) && has_negation(truth) {
+            score = score.max(semantic_overlap_f1(answer, truth) * 0.50);
         }
         score
     }
@@ -443,7 +714,10 @@ pub mod scoring {
         #[test]
         fn exact_match_scores_one() {
             assert_eq!(
-                score_pair("Paris is the capital of France.", "Paris is the capital of France."),
+                score_pair(
+                    "Paris is the capital of France.",
+                    "Paris is the capital of France."
+                ),
                 1.0
             );
         }
@@ -531,8 +805,15 @@ pub mod scoring {
                 let bad_score = score_pair(ground_truth, bad);
 
                 assert!(self_match >= 0.75, "self-match was {self_match}");
-                assert!(good_score > bad_score, "expected good ({good_score}) > bad ({bad_score})");
-                assert!(good_score - bad_score >= 0.1, "margin was {}", good_score - bad_score);
+                assert!(
+                    good_score > bad_score,
+                    "expected good ({good_score}) > bad ({bad_score})"
+                );
+                assert!(
+                    good_score - bad_score >= 0.1,
+                    "margin was {}",
+                    good_score - bad_score
+                );
 
                 observed[next] = self_match;
                 observed[next + 1] = good_score;
@@ -551,26 +832,94 @@ pub mod scoring {
             // unpublished fixtures, are not Miner data, and are never used
             // by production code paths.
             let cases = [
-                ("The proposal transfers 5,000 USDC.", "The proposal transfers 5000 USDC.", "The proposal transfers 500 USDC."),
-                ("The proposal is fraudulent.", "This is a scam.", "This is legitimate."),
-                ("The proposal is legitimate.", "The proposal is safe.", "The proposal is a scam."),
-                ("The proposal is fraudulent.", "The proposal is fraudulent.", "The proposal is not fraudulent."),
-                ("The proposal is not fraudulent.", "The proposal is not fraudulent.", "The proposal is fraudulent."),
-                ("The audit must finish before deployment.", "Deployment requires the audit to finish first.", "Deployment does not require an audit."),
-                ("Voting closes on 2026-09-01.", "The vote ends on 2026-09-01.", "The vote ends on 2026-09-10."),
-                ("The quorum is 100000 tokens.", "A 100000 token quorum is required.", "A 10000 token quorum is required."),
-                ("The treasury sends 250 USDC to the contributor.", "The contributor receives 250 USDC from the treasury.", "The treasury sends 2500 USDC to the contributor."),
-                ("The claim has no supporting evidence.", "There is no evidence supporting the claim.", "The claim has supporting evidence."),
-                ("The bridge has not completed an audit.", "The bridge has not completed its audit.", "The bridge has completed its audit."),
-                ("The contract upgrade is approved.", "The upgrade is approved.", "The upgrade is not approved."),
-                ("The funds remain in the treasury.", "Treasury funds remain in place.", "The funds are transferred from the treasury."),
-                ("The proposal author disclosed the conflict.", "The conflict was disclosed by the author.", "The author concealed the conflict."),
-                ("The payment recipient is verified.", "The recipient is verified.", "The recipient is not verified."),
+                (
+                    "The proposal transfers 5,000 USDC.",
+                    "The proposal transfers 5000 USDC.",
+                    "The proposal transfers 500 USDC.",
+                ),
+                (
+                    "The proposal is fraudulent.",
+                    "This is a scam.",
+                    "This is legitimate.",
+                ),
+                (
+                    "The proposal is legitimate.",
+                    "The proposal is safe.",
+                    "The proposal is a scam.",
+                ),
+                (
+                    "The proposal is fraudulent.",
+                    "The proposal is fraudulent.",
+                    "The proposal is not fraudulent.",
+                ),
+                (
+                    "The proposal is not fraudulent.",
+                    "The proposal is not fraudulent.",
+                    "The proposal is fraudulent.",
+                ),
+                (
+                    "The audit must finish before deployment.",
+                    "Deployment requires the audit to finish first.",
+                    "Deployment does not require an audit.",
+                ),
+                (
+                    "Voting closes on 2026-09-01.",
+                    "The vote ends on 2026-09-01.",
+                    "The vote ends on 2026-09-10.",
+                ),
+                (
+                    "The quorum is 100000 tokens.",
+                    "A 100000 token quorum is required.",
+                    "A 10000 token quorum is required.",
+                ),
+                (
+                    "The treasury sends 250 USDC to the contributor.",
+                    "The contributor receives 250 USDC from the treasury.",
+                    "The treasury sends 2500 USDC to the contributor.",
+                ),
+                (
+                    "The claim has no supporting evidence.",
+                    "There is no evidence supporting the claim.",
+                    "The claim has supporting evidence.",
+                ),
+                (
+                    "The bridge has not completed an audit.",
+                    "The bridge has not completed its audit.",
+                    "The bridge has completed its audit.",
+                ),
+                (
+                    "The contract upgrade is approved.",
+                    "The upgrade is approved.",
+                    "The upgrade is not approved.",
+                ),
+                (
+                    "The funds remain in the treasury.",
+                    "Treasury funds remain in place.",
+                    "The funds are transferred from the treasury.",
+                ),
+                (
+                    "The proposal author disclosed the conflict.",
+                    "The conflict was disclosed by the author.",
+                    "The author concealed the conflict.",
+                ),
+                (
+                    "The payment recipient is verified.",
+                    "The recipient is verified.",
+                    "The recipient is not verified.",
+                ),
             ];
 
             let truth_tokens = ["The", "claim", "has", "no", "supporting", "evidence."];
             let contradictory_tokens = ["The", "claim", "has", "supporting", "evidence."];
-            let equivalent_tokens = ["There", "is", "no", "evidence", "supporting", "the", "claim."];
+            let equivalent_tokens = [
+                "There",
+                "is",
+                "no",
+                "evidence",
+                "supporting",
+                "the",
+                "claim.",
+            ];
             assert!(has_polarity_conflict(&contradictory_tokens, &truth_tokens));
             assert!(!has_polarity_conflict(&equivalent_tokens, &truth_tokens));
 
@@ -582,6 +931,158 @@ pub mod scoring {
                     "expected good ({good_score}) > bad ({bad_score}) for truth: {truth}"
                 );
             }
+        }
+
+        #[test]
+        fn broader_ordering_diagnostics_cover_fraud_detection_claims() {
+            // Local correctness fixtures only. These cases are deliberately
+            // broader than the compact regression suite and are never sent
+            // to Telegraph or used as Miner data.
+            let cases = [
+                (
+                    "The proposal is a scam.",
+                    "The proposal is fraudulent.",
+                    "The proposal is legitimate.",
+                ),
+                (
+                    "The proposal is legitimate.",
+                    "The proposal is authentic.",
+                    "The proposal is fraudulent.",
+                ),
+                (
+                    "The proposal is not fraudulent.",
+                    "This is not a scam.",
+                    "This is a scam.",
+                ),
+                (
+                    "The proposal has not completed an audit.",
+                    "No audit has been completed for the proposal.",
+                    "The proposal has completed an audit.",
+                ),
+                (
+                    "The contract does not meet the required quorum.",
+                    "The required quorum is not met by the contract.",
+                    "The contract meets the required quorum.",
+                ),
+                (
+                    "The payment is not approved.",
+                    "No approval exists for the payment.",
+                    "The payment is approved.",
+                ),
+                (
+                    "The vote ends on 2026-09-01.",
+                    "Voting closes on 2026-09-01.",
+                    "Voting closes on 2026-09-10.",
+                ),
+                (
+                    "The vote ends on 2026-09-01.",
+                    "The vote ends on September 1, 2026.",
+                    "The vote ends on September 10, 2026.",
+                ),
+                (
+                    "The proposal transfers 5,000 USDC to Alice.",
+                    "Alice receives 5000 USDC from the proposal.",
+                    "Alice receives 50,000 USDC from the proposal.",
+                ),
+                (
+                    "The proposal transfers 250 USDC to Bob.",
+                    "Bob receives $250 USDC.",
+                    "Bob receives $25 USDC.",
+                ),
+                (
+                    "The treasury retains 100 ETH.",
+                    "100 ETH remains in the treasury.",
+                    "10 ETH remains in the treasury.",
+                ),
+                (
+                    "Alice is the payment recipient.",
+                    "The recipient is Alice.",
+                    "The recipient is Bob.",
+                ),
+                (
+                    "The bridge contract is audited by Firm A.",
+                    "Firm A audited the bridge contract.",
+                    "Firm B audited the bridge contract.",
+                ),
+                (
+                    "The proposal author disclosed a conflict of interest.",
+                    "A conflict was disclosed by the author.",
+                    "The author concealed the conflict.",
+                ),
+                (
+                    "The recipient is verified.",
+                    "Verification has been completed for the recipient.",
+                    "The recipient is unverified.",
+                ),
+                (
+                    "There is no supporting evidence for the claim.",
+                    "The claim has no evidence supporting it.",
+                    "The claim has supporting evidence.",
+                ),
+                (
+                    "The proposal has supporting evidence.",
+                    "Evidence supports the proposal.",
+                    "The proposal lacks supporting evidence.",
+                ),
+                (
+                    "The audit report is fabricated.",
+                    "The audit report is fraudulent.",
+                    "The audit report is authentic.",
+                ),
+                (
+                    "The claim is false.",
+                    "The claim is not true.",
+                    "The claim is true.",
+                ),
+                (
+                    "The contract upgrade is rejected.",
+                    "The upgrade was denied.",
+                    "The upgrade was approved.",
+                ),
+                (
+                    "The funds remain in the treasury.",
+                    "The treasury keeps the funds.",
+                    "The funds leave the treasury.",
+                ),
+                (
+                    "The proposal does not authorize a transfer.",
+                    "No transfer is authorized by the proposal.",
+                    "The proposal authorizes a transfer.",
+                ),
+                (
+                    "The multisig requires three signatures.",
+                    "Three signatures are required by the multisig.",
+                    "Two signatures are required by the multisig.",
+                ),
+                (
+                    "The deadline is 48 hours.",
+                    "The deadline lasts for 48 hours.",
+                    "The deadline lasts for 24 hours.",
+                ),
+            ];
+
+            let mut failures = 0;
+            for (truth, good, bad) in cases {
+                let good_score = score_pair(truth, good);
+                let bad_score = score_pair(truth, bad);
+                if good_score <= bad_score {
+                    failures += 1;
+                    let mut good_buf = [""; MAX_WORDS];
+                    let mut truth_buf = [""; MAX_WORDS];
+                    let good_len = tokenize(good, &mut good_buf);
+                    let truth_len = tokenize(truth, &mut truth_buf);
+                    println!(
+                        "inversion: truth={truth:?}, good={good_score}, bad={bad_score}, negated_good={}, negated_truth={}, overlap={}",
+                        has_negation(&good_buf[..good_len]),
+                        has_negation(&truth_buf[..truth_len]),
+                        semantic_overlap_f1(&good_buf[..good_len], &truth_buf[..truth_len])
+                    );
+                }
+            }
+            assert_eq!(
+                failures, 0,
+                "broader ordering suite found {failures} inversion(s)"
+            );
         }
 
         #[test]
