@@ -1,0 +1,177 @@
+[
+  {
+    "gt": "The DAO approved the proposal to fund the security audit with 75000 USDC.",
+    "good": "75000 USDC was approved by the DAO for the security audit.",
+    "bad": "The DAO discussed funding."
+  },
+  {
+    "gt": "Validator uptime was 99.8 percent over the last epoch.",
+    "good": "The validator stayed online 99.8% of the last epoch.",
+    "bad": "Validator performance was poor."
+  },
+  {
+    "gt": "The bridge paused withdrawals after detecting anomalous volume.",
+    "good": "Withdrawals were halted when unusual volume was seen on the bridge.",
+    "bad": "The bridge increased withdrawal limits."
+  },
+  {
+    "gt": "Governance quorum requires 5 percent of total supply.",
+    "good": "Five percent of supply must vote to reach quorum.",
+    "bad": "Quorum is not required."
+  },
+  {
+    "gt": "The multisig executed transaction 0xabcd after 3 of 5 signatures.",
+    "good": "3/5 multisig signers approved tx 0xabcd which then executed.",
+    "bad": "The multisig rejected the transaction."
+  },
+  {
+    "gt": "Annual percentage yield is 12.4 percent compounded daily.",
+    "good": "The annual percentage yield is 12.4 percent compounded each day.",
+    "bad": "Yield is negligible."
+  },
+  {
+    "gt": "The oracle price feed deviated by 2.1 percent from the median.",
+    "good": "Median vs oracle price differed 2.1%.",
+    "bad": "Oracle prices were identical."
+  },
+  {
+    "gt": "Slashing condition triggered after double signing at height 891234.",
+    "good": "Double sign at 891234 caused slashing.",
+    "bad": "No slashing occurred."
+  },
+  {
+    "gt": "The proposal discloses the team allocation of 15 percent vested over 2 years.",
+    "good": "Team gets 15% vesting 2 years as disclosed.",
+    "bad": "The proposal conceals team allocation."
+  },
+  {
+    "gt": "Liquidity depth on Uniswap v3 is $4.2M concentrated at 0.05% fee.",
+    "good": "Uniswap v3 holds $4.2M liquidity at 0.05% fee tier.",
+    "bad": "Liquidity is empty."
+  },
+  {
+    "gt": "The audit found 2 critical and 5 medium severity issues.",
+    "good": "Auditors flagged two critical, five medium issues.",
+    "bad": "The audit found no issues."
+  },
+  {
+    "gt": "Staking rewards are distributed every 86400 seconds.",
+    "good": "Rewards payout is daily (86400s).",
+    "bad": "Rewards are never distributed."
+  },
+  {
+    "gt": "The contract upgrade was timelocked for 48 hours.",
+    "good": "48h timelock preceded the upgrade.",
+    "bad": "The upgrade was instant with no timelock."
+  },
+  {
+    "gt": "Total value locked decreased from $120M to $95M after the exploit.",
+    "good": "Total value locked decreased from $120M to $95M post exploit.",
+    "bad": "TVL increased after the exploit."
+  },
+  {
+    "gt": "The sequencer batch included 240 transactions.",
+    "good": "240 tx were in the sequencer batch.",
+    "bad": "The sequencer batch was empty."
+  },
+  {
+    "gt": "Gas price spiked to 180 gwei during the mint.",
+    "good": "Mint pushed gas to 180 gwei.",
+    "bad": "Gas remained low during mint."
+  },
+  {
+    "gt": "The airdrop distributes 1000 tokens per eligible address.",
+    "good": "Each eligible address gets 1000 tokens airdropped.",
+    "bad": "No airdrop will occur."
+  },
+  {
+    "gt": "The circuit breaker halted trading at 14:32 UTC.",
+    "good": "Trading stopped 14:32 UTC via circuit breaker.",
+    "bad": "Trading continued uninterrupted."
+  },
+  {
+    "gt": "Proof generation took 42 seconds on an M2 Max.",
+    "good": "M2 Max needed 42s to generate the proof.",
+    "bad": "Proof generation was instantaneous."
+  },
+  {
+    "gt": "The rollup posts data to Ethereum calldata every 10 minutes.",
+    "good": "Every 10 minutes the rollup posts to Ethereum calldata.",
+    "bad": "The rollup never posts data."
+  },
+  {
+    "gt": "Delegation requires 32 ETH minimum.",
+    "good": "You need at least 32 ETH to delegate.",
+    "bad": "Delegation has no minimum."
+  },
+  {
+    "gt": "The node synced to block 19238472.",
+    "good": "Sync reached block 19238472.",
+    "bad": "The node is not synced."
+  },
+  {
+    "gt": "The treasury holds 3.5M USDC and 1200 ETH.",
+    "good": "Treasury contains 3.5M USDC + 1200 ETH.",
+    "bad": "The treasury is empty."
+  },
+  {
+    "gt": "Voting power is quadratic, capped at 10000 points.",
+    "good": "Quadratic voting capped 10000 points.",
+    "bad": "Voting power is linear uncapped."
+  },
+  {
+    "gt": "The market maker provided $800k depth within 2% of mid price.",
+    "good": "Market maker placed $800k within 2% of mid.",
+    "bad": "No market maker depth exists."
+  },
+  {
+    "gt": "Finality is achieved after 2 epochs, roughly 13 minutes.",
+    "good": "Two epochs (~13 min) to finality.",
+    "bad": "Finality is instant."
+  },
+  {
+    "gt": "The bug bounty paid $50000 for the critical report.",
+    "good": "$50k bounty for critical bug.",
+    "bad": "No bounty was paid."
+  },
+  {
+    "gt": "The chain halted at 09:14 UTC due to consensus failure.",
+    "good": "Consensus failure halted chain 09:14 UTC.",
+    "bad": "The chain ran continuously."
+  },
+  {
+    "gt": "The token trades at $1.42 with $2.1M 24h volume.",
+    "good": "Price $1.42, volume $2.1M 24h.",
+    "bad": "The token has no market."
+  },
+  {
+    "gt": "The proposal was rejected with 62 percent voting against.",
+    "good": "62% voted against, proposal rejected.",
+    "bad": "The proposal was approved unanimously."
+  },
+  {
+    "gt": "Encryption uses AES-256-GCM with 12-byte nonces.",
+    "good": "Encryption uses AES-256-GCM with 12-byte nonces.",
+    "bad": "Encryption is not used."
+  },
+  {
+    "gt": "The leaderboard shows rank 42 with score 0.8719.",
+    "good": "Score 0.8719 at rank 42 on leaderboard.",
+    "bad": "No leaderboard exists."
+  },
+  {
+    "gt": "Withdrawal delay is 7 days for security.",
+    "good": "7-day delay on withdrawals for security.",
+    "bad": "Withdrawals are instant."
+  },
+  {
+    "gt": "The validator set has 100 active nodes.",
+    "good": "100 validators are currently active.",
+    "bad": "No validators are active."
+  },
+  {
+    "gt": "The snapshot was taken at block 18000000.",
+    "good": "Block 18000000 snapshot.",
+    "bad": "No snapshot was taken."
+  }
+]

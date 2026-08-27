@@ -826,6 +826,53 @@ pub mod scoring {
         }
 
         #[test]
+        #[test]
+        fn broad_corpus_50_ordering() {
+            let cases: &[(&str, &str, &str)] = &[
+                ("The DAO approved the proposal to fund the security audit with 75000 USDC.", "75000 USDC was approved by the DAO for the security audit.", "The DAO discussed funding."),
+                ("Validator uptime was 99.8 percent over the last epoch.", "The validator stayed online 99.8% of the last epoch.", "Validator performance was poor."),
+                ("The bridge paused withdrawals after detecting anomalous volume.", "Withdrawals were halted when unusual volume was seen on the bridge.", "The bridge increased withdrawal limits."),
+                ("Governance quorum requires 5 percent of total supply.", "Five percent of supply must vote to reach quorum.", "Quorum is not required."),
+                ("The multisig executed transaction 0xabcd after 3 of 5 signatures.", "3/5 multisig signers approved tx 0xabcd which then executed.", "The multisig rejected the transaction."),
+                ("Annual percentage yield is 12.4 percent compounded daily.", "The annual percentage yield is 12.4 percent compounded each day.", "Yield is negligible."),
+                ("The oracle price feed deviated by 2.1 percent from the median.", "Median vs oracle price differed 2.1%.", "Oracle prices were identical."),
+                ("Slashing condition triggered after double signing at height 891234.", "Double sign at 891234 caused slashing.", "No slashing occurred."),
+                ("The proposal discloses the team allocation of 15 percent vested over 2 years.", "Team gets 15% vesting 2 years as disclosed.", "The proposal conceals team allocation."),
+                ("Liquidity depth on Uniswap v3 is $4.2M concentrated at 0.05% fee.", "Uniswap v3 holds $4.2M liquidity at 0.05% fee tier.", "Liquidity is empty."),
+                ("The audit found 2 critical and 5 medium severity issues.", "Auditors flagged two critical, five medium issues.", "The audit found no issues."),
+                ("Staking rewards are distributed every 86400 seconds.", "Rewards payout is daily (86400s).", "Rewards are never distributed."),
+                ("The contract upgrade was timelocked for 48 hours.", "48h timelock preceded the upgrade.", "The upgrade was instant with no timelock."),
+                ("Total value locked decreased from $120M to $95M after the exploit.", "Total value locked decreased from $120M to $95M post exploit.", "TVL increased after the exploit."),
+                ("The sequencer batch included 240 transactions.", "240 tx were in the sequencer batch.", "The sequencer batch was empty."),
+                ("Gas price spiked to 180 gwei during the mint.", "Mint pushed gas to 180 gwei.", "Gas remained low during mint."),
+                ("The airdrop distributes 1000 tokens per eligible address.", "Each eligible address gets 1000 tokens airdropped.", "No airdrop will occur."),
+                ("The circuit breaker halted trading at 14:32 UTC.", "Trading stopped 14:32 UTC via circuit breaker.", "Trading continued uninterrupted."),
+                ("Proof generation took 42 seconds on an M2 Max.", "M2 Max needed 42s to generate the proof.", "Proof generation was instantaneous."),
+                ("The rollup posts data to Ethereum calldata every 10 minutes.", "Every 10 minutes the rollup posts to Ethereum calldata.", "The rollup never posts data."),
+                ("Delegation requires 32 ETH minimum.", "You need at least 32 ETH to delegate.", "Delegation has no minimum."),
+                ("The node synced to block 19238472.", "Sync reached block 19238472.", "The node is not synced."),
+                ("The treasury holds 3.5M USDC and 1200 ETH.", "Treasury contains 3.5M USDC + 1200 ETH.", "The treasury is empty."),
+                ("Voting power is quadratic, capped at 10000 points.", "Quadratic voting capped 10000 points.", "Voting power is linear uncapped."),
+                ("The market maker provided $800k depth within 2% of mid price.", "Market maker placed $800k within 2% of mid.", "No market maker depth exists."),
+                ("Finality is achieved after 2 epochs, roughly 13 minutes.", "Two epochs (~13 min) to finality.", "Finality is instant."),
+                ("The bug bounty paid $50000 for the critical report.", "$50k bounty for critical bug.", "No bounty was paid."),
+                ("The chain halted at 09:14 UTC due to consensus failure.", "Consensus failure halted chain 09:14 UTC.", "The chain ran continuously."),
+                ("The token trades at $1.42 with $2.1M 24h volume.", "Price $1.42, volume $2.1M 24h.", "The token has no market."),
+                ("The proposal was rejected with 62 percent voting against.", "62% voted against, proposal rejected.", "The proposal was approved unanimously."),
+                ("Encryption uses AES-256-GCM with 12-byte nonces.", "Encryption uses AES-256-GCM with 12-byte nonces.", "Encryption is not used."),
+                ("The leaderboard shows rank 42 with score 0.8719.", "Score 0.8719 at rank 42 on leaderboard.", "No leaderboard exists."),
+                ("Withdrawal delay is 7 days for security.", "7-day delay on withdrawals for security.", "Withdrawals are instant."),
+                ("The validator set has 100 active nodes.", "100 validators are currently active.", "No validators are active."),
+                ("The snapshot was taken at block 18000000.", "Block 18000000 snapshot.", "No snapshot was taken."),
+            ];
+            for (gt, good, bad) in cases {
+                let g = score_pair(gt, good);
+                let b = score_pair(gt, bad);
+                assert!(g > b, "broad corpus: good ({g}) must beat bad ({b}) for gt: {gt}");
+            }
+        }
+
+        #[test]
         fn handles_long_input_without_panicking() {
             let gt = "The answer is forty two.";
             let long_answer = "word ".repeat(5000); // well beyond MAX_WORDS
