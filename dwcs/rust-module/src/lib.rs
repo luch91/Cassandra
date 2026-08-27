@@ -217,8 +217,12 @@ pub mod scoring {
             && matches_any(b, &["reject", "rejected", "deny", "denied"]))
             || (matches_any(b, &["approve", "approved", "approval"])
                 && matches_any(a, &["reject", "rejected", "deny", "denied"]));
+        let custody = (matches_any(a, &["remain", "remains", "stays", "stay", "stayed", "hold", "held"])
+            && matches_any(b, &["transfer", "transferred", "transfers", "move", "moved", "moves", "send", "sent"]))
+            || (matches_any(b, &["remain", "remains", "stays", "stay", "stayed", "hold", "held"])
+                && matches_any(a, &["transfer", "transferred", "transfers", "move", "moved", "moves", "send", "sent"]));
         let risk = (is_fraud_term(a) && is_safe_term(b)) || (is_fraud_term(b) && is_safe_term(a));
-        disclosure || approval || risk
+        disclosure || approval || risk || custody
     }
 
     fn is_negation(w: &str) -> bool {
@@ -793,6 +797,32 @@ pub mod scoring {
             let correct = "Voting closes after a quorum of 100000 tokens.";
             let wrong = "Voting closes after a quorum of 50000 tokens.";
             assert!(score_pair(truth, correct) > score_pair(truth, wrong));
+        }
+
+        #[test]
+        fn expanded_adversarial_ordering_suite() {
+            let cases: &[(&str, &str, &str, f32)] = &[
+                ("The proposal transfers 5000 USDC to the audit contributor after a successful vote.", "After the vote passes, five thousand USDC goes to the auditor.", "The proposal moves USDC after a vote.", 0.0),
+                ("The contract was deployed on the Ethereum mainnet in March.", "Ethereum mainnet received the contract deployment this March.", "The contract exists on Ethereum's network.", 0.0),
+                ("Water boils at 100 degrees Celsius at sea level.", "One hundred degrees Celsius is water's boiling point at sea level.", "Boiling temperature varies with altitude.", 0.0),
+                ("The bridge contract must complete an independent audit before deployment.", "An external audit has to finish before the bridge contract deploys.", "The bridge contract publishes newsletters weekly.", 0.0),
+                ("France's capital city is Paris.", "Paris is France's capital city.", "Rome is Italy's capital.", 0.0),
+                ("Photosynthesis converts sunlight into chemical energy.", "Light becomes chemical energy stored by plants during photosynthesis.", "Mitochondria produce energy inside cells.", 0.0),
+                ("A quorum of 100000 tokens is needed before voting can close.", "At minimum one hundred thousand tokens must vote for closure.", "The vote remains open indefinitely without quorum.", 0.0),
+                ("The Eiffel Tower is located in Paris, France.", "The Eiffel Tower stands in Paris, France.", "Paris France Eiffel Tower Paris France located located.", 0.0),
+                ("The proposal is safe and legitimate.", "The proposal is valid and authentic.", "The proposal is a scam and fraudulent.", 0.0),
+                ("The vote closes on 2026-09-01.", "Voting ends on 2026-09-01.", "Voting ends on 2026-09-10.", 0.0),
+                ("The audit must finish before deployment.", "Deployment requires the audit to finish first.", "Deployment does not require an audit.", 0.0),
+                ("The claim has no supporting evidence.", "There is no evidence supporting the claim.", "The claim has supporting evidence.", 0.0),
+                ("The payment recipient is verified.", "The recipient has been authenticated.", "The recipient is not verified.", 0.0),
+                ("The funds remain in the treasury.", "Treasury funds stay in place.", "The funds are transferred from the treasury.", 0.0),
+                ("Two factor authentication requires a password and a second device.", "Your phone plus your password lets you sign in.", "Authentication needs a password only.", -0.05),
+            ];
+            for (truth, good, bad, tol) in cases {
+                let g = score_pair(truth, good);
+                let b = score_pair(truth, bad);
+                assert!(g + tol > b, "expected good ({g}) + tol ({tol}) > bad ({b}) for truth: {truth}");
+            }
         }
 
         #[test]
