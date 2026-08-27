@@ -42,4 +42,30 @@ describe("scorePair (TS prototype, mirrors dwcs/rust-module/src/lib.rs)", () => 
     expect(breakdown).toHaveProperty("variance");
     expect(breakdown.finalScore).toBeGreaterThan(0);
   });
+
+  it("orders local fraud-relevant correctness fixtures", () => {
+    // Local correctness fixtures only. They are not Miner data and are never
+    // sent to Telegraph.
+    const cases: Array<[string, string, string]> = [
+      ["The proposal transfers 5,000 USDC.", "The proposal transfers 5000 USDC.", "The proposal transfers 500 USDC."],
+      ["The proposal is fraudulent.", "This is a scam.", "This is legitimate."],
+      ["The proposal is legitimate.", "The proposal is safe.", "The proposal is a scam."],
+      ["The proposal is fraudulent.", "The proposal is fraudulent.", "The proposal is not fraudulent."],
+      ["The proposal is not fraudulent.", "The proposal is not fraudulent.", "The proposal is fraudulent."],
+      ["The audit must finish before deployment.", "Deployment requires the audit to finish first.", "Deployment does not require an audit."],
+      ["Voting closes on 2026-09-01.", "The vote ends on 2026-09-01.", "The vote ends on 2026-09-10."],
+      ["The quorum is 100000 tokens.", "A 100000 token quorum is required.", "A 10000 token quorum is required."],
+      ["The treasury sends 250 USDC to the contributor.", "The contributor receives 250 USDC from the treasury.", "The treasury sends 2500 USDC to the contributor."],
+      ["The claim has no supporting evidence.", "There is no evidence supporting the claim.", "The claim has supporting evidence."],
+      ["The bridge has not completed an audit.", "The bridge has not completed its audit.", "The bridge has completed its audit."],
+      ["The contract upgrade is approved.", "The upgrade is approved.", "The upgrade is not approved."],
+      ["The funds remain in the treasury.", "Treasury funds remain in place.", "The funds are transferred from the treasury."],
+      ["The proposal author disclosed the conflict.", "The conflict was disclosed by the author.", "The author concealed the conflict."],
+      ["The payment recipient is verified.", "The recipient is verified.", "The recipient is not verified."],
+    ];
+
+    for (const [truth, good, bad] of cases) {
+      expect(scorePair(truth, good)).toBeGreaterThan(scorePair(truth, bad));
+    }
+  });
 });
