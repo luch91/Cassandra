@@ -83,6 +83,8 @@ unsafe fn read_str<'a>(ptr: i32, len: i32) -> &'a str {
 // `no_std` attribute above only applies to the wasm32 build).
 // ---------------------------------------------------------------------
 
+pub mod embeddings;
+
 pub mod scoring {
     // Explicit import for absolute clarity in a no_std context. The core
     // prelude normally brings this in automatically, this just removes any
@@ -324,7 +326,7 @@ pub mod scoring {
                 continue;
             }
             count += 1;
-            if answer.iter().any(|a| eq_norm(a, t)) {
+            if answer.iter().any(|a| semantic_eq(a, t)) {
                 covered += 1;
             }
         }
@@ -333,6 +335,56 @@ pub mod scoring {
         }
         covered as f32 / count as f32
     }
+
+    fn sqrt_f32(x: f32) -> f32 {
+        if x <= 0.0 { return 0.0; }
+        let mut guess = if x > 1.0 { x } else { 1.0 };
+        for _ in 0..24 { guess = 0.5 * (guess + x / guess); }
+        guess
+    }
+
+    fn semantic_coverage(answer: &[&str], truth: &[&str]) -> f32 {
+        let mut total = 0usize;
+        let mut covered = 0.0f32;
+        for t in truth {
+            if is_stopword(t) { continue; }
+            total += 1;
+            let Some(tv) = crate::embeddings::lookup(t) else { continue; };
+            let tnorm = vector_norm(&tv);
+            if tnorm == 0.0 { continue; }
+            let mut best = 0.0f32;
+            for a in answer {
+                if is_stopword(a) { continue; }
+                if semantic_eq(t, a) {
+                    best = 1.0;
+                    break;
+                }
+                let Some(av) = crate::embeddings::lookup(a) else { continue; };
+                let anorm = vector_norm(&av);
+                if anorm == 0.0 { continue; }
+                let c = vector_dot(&tv, &av) / (tnorm * anorm);
+                if c > best { best = c; }
+            }
+            if best > SEMANTIC_MIN {
+                let x = (best - SEMANTIC_MIN) / (1.0 - SEMANTIC_MIN);
+                covered += SEMANTIC_CAP * x * x;
+            }
+        }
+        if total == 0 { 0.0 } else { covered / total as f32 }
+    }
+
+    fn vector_dot(a: &[f32; crate::embeddings::D], b: &[f32; crate::embeddings::D]) -> f32 {
+        let mut sum = 0.0f32;
+        for i in 0..crate::embeddings::D { sum += a[i] * b[i]; }
+        sum
+    }
+
+    fn vector_norm(a: &[f32; crate::embeddings::D]) -> f32 {
+        sqrt_f32(vector_dot(a, a))
+    }
+
+    const SEMANTIC_MIN: f32 = 0.65;
+    const SEMANTIC_CAP: f32 = 0.35;
 
     /// Same idea as word_overlap, but stopwords count for less, so an
     /// answer can't inflate its score by padding with function words.
@@ -479,9 +531,10 @@ pub mod scoring {
             score *= (coverage / SUBSET_GATE) * (coverage / SUBSET_GATE);
         }
 
-        // 4. structural floor
+        // 4. structural floor (exempt when semantic recall shows valid paraphrase)
         let structure = (bigram + lcs) / 2.0;
-        if structure < STRUCTURE_FLOOR {
+        let has_semantic_support = coverage > 0.30;
+        if structure < STRUCTURE_FLOOR && !has_semantic_support {
             score *= STRUCTURE_MULTIPLIER;
         }
 
@@ -549,7 +602,9 @@ pub mod scoring {
         let answer = &a_buf[..a_n];
         let truth = &t_buf[..t_n];
 
-        let coverage = gt_coverage(answer, truth);
+        let lexical_coverage = gt_coverage(answer, truth);
+        let sem_cov = semantic_coverage(answer, truth);
+        let coverage = lexical_coverage.max((lexical_coverage + sem_cov).min(1.0));
         let metrics = [
             word_overlap(answer, truth),
             stopword_weighted_overlap(answer, truth),
