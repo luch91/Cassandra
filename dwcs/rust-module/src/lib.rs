@@ -241,6 +241,13 @@ fn is_opposite(a: &str, b: &str) -> bool {
 }
 
 fn has_contradiction(truth: &str, answer: &str) -> bool {
+    // An exact answer cannot contradict itself. This also prevents the
+    // occurrence-pair scan below from confusing separate uses of a polarity
+    // term within the same text for a contradiction.
+    if truth.trim() == answer.trim() {
+        return false;
+    }
+
     let mut truth_words = [""; MAX_WORDS];
     let mut answer_words = [""; MAX_WORDS];
     let truth_len = tokenize_words(truth, &mut truth_words);
@@ -486,5 +493,11 @@ mod tests {
             "The proposal is fraudulent.",
             "The proposal is legitimate."
         ));
+    }
+
+    #[test]
+    fn identical_text_is_never_marked_as_a_contradiction() {
+        let text = "The proposal is not fraudulent, but the report calls another claim fraudulent.";
+        assert!(!has_contradiction(text, text));
     }
 }
