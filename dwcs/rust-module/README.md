@@ -1,6 +1,6 @@
 # dwcs-scoring-module
 
-The real, deployable DWCS implementation. This is what gets compiled to `.wasm` and registered on Telegraph.
+The real, deployable DWCS implementation. This module combines the official MiniLM-L6-v2 semantic signal with BM25 lexical scoring, length quality, and per-call contradiction penalties.
 
 ## Test on the host (no WASM tooling needed)
 
@@ -8,13 +8,19 @@ The real, deployable DWCS implementation. This is what gets compiled to `.wasm` 
 cargo test
 ```
 
-The `#![cfg_attr(target_arch = "wasm32", no_std)]` attribute at the top of `src/lib.rs` means host test builds get full `std`, only the actual wasm32 build is `no_std`. This runs every unit test in `src/lib.rs`'s `scoring::tests` module directly.
+The crate is `no_std` and the panic handler is disabled only for host tests. This runs the tokenizer, embedding, BM25, and contradiction tests without requiring a WASM runtime.
 
 ## Build the real WASM binary
 
 ```
 rustup target add wasm32-unknown-unknown
 cargo build --release --target wasm32-unknown-unknown
+```
+
+The registered build must use the real MiniLM weights:
+
+```
+cargo build --release --target wasm32-unknown-unknown --features real_weights
 ```
 
 Output: `target/wasm32-unknown-unknown/release/dwcs_scoring_module.wasm`
