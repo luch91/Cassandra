@@ -1,18 +1,14 @@
 /**
- * TypeScript mirror of dwcs/rust-module/src/lib.rs's scoring logic.
+ * TypeScript research prototype for the deterministic contradiction layer.
  *
  * This is NOT the deployed module. The actual scoring module that gets
  * compiled to WASM and registered on Telegraph lives in
- * dwcs/rust-module/src/lib.rs. This file exists purely so metric weights
- * and thresholds can be prototyped and tuned quickly in TypeScript before
- * porting a change back into the Rust source, which is slower to iterate
- * on. If you change the logic here, port the equivalent change to
- * lib.rs, and vice versa, do not let them drift into two different
- * scoring behaviors.
+ * The deployed Rust module also includes the official MiniLM semantic
+ * signal, which cannot be reproduced by this lightweight prototype. Use
+ * this file only to explore contradiction rules and deterministic fixtures.
  *
  * See PROJECT_SPEC.md Section 4.2 for the design rationale, and decision
- * D9 for why this is a deterministic multi-metric ensemble rather than an
- * LLM-judge ensemble.
+ * D9 for the no-network scoring-module constraint.
  */
 
 const STOPWORDS = new Set([

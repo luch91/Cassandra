@@ -1,6 +1,6 @@
 import { scorePair, scorePairWithBreakdown } from "../src/prototype";
 
-describe("scorePair (TS prototype, mirrors dwcs/rust-module/src/lib.rs)", () => {
+describe("scorePair (TS contradiction-layer prototype)", () => {
   it("scores an empty answer exactly 0", () => {
     expect(scorePair("Paris is the capital of France.", "")).toBe(0);
     expect(scorePair("Paris is the capital of France.", "   ")).toBe(0);
