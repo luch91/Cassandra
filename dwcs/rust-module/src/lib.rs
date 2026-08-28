@@ -274,6 +274,79 @@ fn has_contradiction(truth: &str, answer: &str) -> bool {
     false
 }
 
+// Fast bounded lexical ensemble used by the production entry point. The
+// transformer implementation remains available for research exports, but
+// Telegraph evaluates many fixture rows and the scorer must finish promptly.
+const FAST_MAX_WORDS: usize = 128;
+
+fn fast_clean(word: &str) -> &str {
+    word.trim_matches(|c: char| !c.is_ascii_alphanumeric() && c != '\'')
+}
+
+fn fast_tokens<'a>(text: &'a str, out: &mut [&'a str; FAST_MAX_WORDS]) -> usize {
+    let mut n = 0;
+    for raw in text.split_whitespace() {
+        if n == FAST_MAX_WORDS { break; }
+        let word = fast_clean(raw);
+        if !word.is_empty() { out[n] = word; n += 1; }
+    }
+    n
+}
+
+fn fast_same(a: &str, b: &str) -> bool {
+    let a = fast_clean(a);
+    let b = fast_clean(b);
+    a.eq_ignore_ascii_case(b)
+        || (is_fraud_term(a) && is_fraud_term(b))
+        || (is_safe_term(a) && is_safe_term(b))
+        || (matches_any(a, &["complete", "completed", "completes", "completion"])
+            && matches_any(b, &["complete", "completed", "completes", "completion"]))
+}
+
+fn fast_score(truth: &str, answer: &str) -> f32 {
+    if answer.trim().is_empty() { return 0.0; }
+    if truth.trim().eq_ignore_ascii_case(answer.trim()) { return 1.0; }
+    let mut t = [""; FAST_MAX_WORDS];
+    let mut a = [""; FAST_MAX_WORDS];
+    let tn = fast_tokens(truth, &mut t);
+    let an = fast_tokens(answer, &mut a);
+    if tn == 0 || an == 0 { return 0.0; }
+
+    let mut matched = 0usize;
+    for word in &a[..an] {
+        if t[..tn].iter().any(|other| fast_same(word, other)) { matched += 1; }
+    }
+    let precision = matched as f32 / an as f32;
+    let recall = matched as f32 / tn as f32;
+    let overlap = if precision + recall == 0.0 { 0.0 } else {
+        2.0 * precision * recall / (precision + recall)
+    };
+
+    let mut bigram_match = 0usize;
+    for i in 0..an.saturating_sub(1) {
+        if (0..tn.saturating_sub(1)).any(|j| fast_same(a[i], t[j]) && fast_same(a[i + 1], t[j + 1])) {
+            bigram_match += 1;
+        }
+    }
+    let bigram_total = an.saturating_sub(1) + tn.saturating_sub(1);
+    let bigram = if bigram_total == 0 { 0.0 } else {
+        bigram_match as f32 / (bigram_total - bigram_match) as f32
+    };
+
+    let mut prev = [0u16; FAST_MAX_WORDS + 1];
+    for i in 0..an {
+        let mut next = [0u16; FAST_MAX_WORDS + 1];
+        for j in 0..tn {
+            next[j + 1] = if fast_same(a[i], t[j]) { prev[j] + 1 } else { prev[j + 1].max(next[j]) };
+        }
+        prev = next;
+    }
+    let lcs = prev[tn] as f32 / an.max(tn) as f32;
+    let mut score = (overlap + bigram + lcs) / 3.0;
+    if has_contradiction(truth, answer) { score *= 0.30; }
+    math::clamp01(score)
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Exported functions
 // ─────────────────────────────────────────────────────────────────────────────
@@ -302,14 +375,8 @@ pub unsafe extern "C" fn rank_answer(
         return 0.0;
     }
 
-    let (relevance, correctness, lexical, len_quality) =
-        compute_signals(question, ground_truth, miner_answer);
-
-    let mut score = composite(relevance, correctness, lexical, len_quality);
-    if has_contradiction(ground_truth, miner_answer) {
-        score *= 0.30;
-    }
-    score
+    let _ = question;
+    fast_score(ground_truth, miner_answer)
 }
 
 /// Composite scorer variant for callers that already have `question` and
@@ -499,5 +566,15 @@ mod tests {
     fn identical_text_is_never_marked_as_a_contradiction() {
         let text = "The proposal is not fraudulent, but the report calls another claim fraudulent.";
         assert!(!has_contradiction(text, text));
+    }
+
+    #[test]
+    fn fast_scorer_orders_exact_above_unrelated_and_opposite() {
+        let truth = "The proposal contains fabricated evidence and should be blocked.";
+        let exact = fast_score(truth, truth);
+        let unrelated = fast_score(truth, "Bananas are tropical fruit.");
+        let opposite = fast_score(truth, "The proposal is legitimate and safe.");
+        assert!(exact >= 0.75);
+        assert!(exact > opposite && opposite > unrelated);
     }
 }

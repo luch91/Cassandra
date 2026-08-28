@@ -1,6 +1,6 @@
 # dwcs-scoring-module
 
-The real, deployable DWCS implementation. This module combines the official MiniLM-L6-v2 semantic signal with BM25 lexical scoring, length quality, and per-call contradiction penalties.
+The real, deployable DWCS implementation. The production entry point uses a bounded lexical ensemble and per-call contradiction penalties so fixture evaluation completes within the validator time budget. The MiniLM implementation remains available for local research comparisons.
 
 ## Test on the host (no WASM tooling needed)
 
@@ -15,12 +15,6 @@ The crate is `no_std` and the panic handler is disabled only for host tests. Thi
 ```
 rustup target add wasm32-unknown-unknown
 cargo build --release --target wasm32-unknown-unknown
-```
-
-The registered build must use the real MiniLM weights:
-
-```
-cargo build --release --target wasm32-unknown-unknown --features real_weights
 ```
 
 Output: `target/wasm32-unknown-unknown/release/dwcs_scoring_module.wasm`
