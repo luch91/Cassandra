@@ -182,12 +182,23 @@ fn is_fraud_term(word: &str) -> bool {
             "scamming",
             "fake",
             "fabricated",
+            "deceptive",
+            "deception",
+            "phishing",
+            "phish",
+            "counterfeit",
+            "forged",
+            "forgery",
+            "manipulated",
+            "malicious",
+            "suspicious",
+            "illegitimate",
         ],
     )
 }
 
 fn is_safe_term(word: &str) -> bool {
-    matches_any(word, &["safe", "legitimate", "legit", "valid", "authentic"])
+        matches_any(word, &["safe", "legitimate", "legit", "valid", "authentic", "benign", "harmless", "trustworthy", "genuine"])
 }
 
 fn same_group(a: &str, b: &str, terms: &[&str]) -> bool {
@@ -845,5 +856,14 @@ mod tests {
         let safe = fast_score_with_question("Assess this proposal.", truth, "The proposal is benign and should be allowed.");
         assert!(good > mixed && mixed > safe);
         assert!(mixed < good * 0.75);
+    }
+
+    #[test]
+    fn fraud_lexicon_matches_equivalent_verdicts_and_rejects_safe_claims() {
+        let truth = "The proposal is fraudulent and should be blocked.";
+        let equivalent = fast_score_with_question("Assess the proposal for fraud.", truth, "The proposal is deceptive and should be blocked.");
+        let opposite = fast_score_with_question("Assess the proposal for fraud.", truth, "The proposal is genuine and should be allowed.");
+        assert!(equivalent > opposite);
+        assert!(equivalent > 0.05);
     }
 }
