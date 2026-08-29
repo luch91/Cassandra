@@ -119,6 +119,19 @@ fn composite(relevance: f32, correctness: f32, lexical: f32, len_quality: f32) -
     math::clamp01(score)
 }
 
+#[inline]
+fn calibrated_score(ground_truth: &str, miner_answer: &str, raw: f32) -> f32 {
+    if ground_truth.trim().eq_ignore_ascii_case(miner_answer.trim()) {
+        return 1.0;
+    }
+    let penalized = if has_contradiction(ground_truth, miner_answer) {
+        raw * 0.30
+    } else {
+        raw
+    };
+    math::clamp01(penalized * penalized)
+}
+
 const MAX_WORDS: usize = 256;
 
 fn clean_word(word: &str) -> &str {
@@ -392,7 +405,8 @@ pub unsafe extern "C" fn rank_answer(
 
     let (relevance, correctness, lexical, len_quality) =
         compute_signals(question, ground_truth, miner_answer);
-    composite(relevance, correctness, lexical, len_quality)
+    let raw = composite(relevance, correctness, lexical, len_quality);
+    calibrated_score(ground_truth, miner_answer, raw)
 }
 
 /// Composite scorer variant for callers that already have `question` and
@@ -444,7 +458,8 @@ pub unsafe extern "C" fn rank_answer_cached(
     let (relevance, correctness, lexical, len_quality) =
         signals_from_vecs(q_vec, gt_vec, ground_truth, miner_answer, &ma_vec);
 
-    composite(relevance, correctness, lexical, len_quality)
+    let raw = composite(relevance, correctness, lexical, len_quality);
+    calibrated_score(ground_truth, miner_answer, raw)
 }
 
 /// Per-signal breakdown scorer.
@@ -482,7 +497,11 @@ pub unsafe extern "C" fn breakdown_answer(
     let (relevance, correctness, lexical, len_quality) =
         compute_signals(question, ground_truth, miner_answer);
 
-    let composite_score = composite(relevance, correctness, lexical, len_quality);
+    let composite_score = calibrated_score(
+        ground_truth,
+        miner_answer,
+        composite(relevance, correctness, lexical, len_quality),
+    );
 
     BREAKDOWN_BUF[IDX_RELEVANCE] = relevance;
     BREAKDOWN_BUF[IDX_CORRECTNESS] = correctness;
@@ -587,5 +606,14 @@ mod tests {
         let opposite = fast_score(truth, "The proposal is legitimate and safe.");
         assert!(exact >= 0.75);
         assert!(exact > opposite && opposite > unrelated);
+    }
+
+    #[test]
+    fn calibrated_score_widens_the_known_margin() {
+        let truth = "The proposal contains fabricated evidence and should be blocked.";
+        let good = calibrated_score(truth, "Fabricated evidence indicates fraud and the proposal should be blocked.", 0.8524);
+        let bad = calibrated_score(truth, "The proposal is legitimate and safe.", 0.5604);
+        assert!(good > bad);
+        assert!(good - bad > 0.4);
     }
 }
