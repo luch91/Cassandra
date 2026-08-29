@@ -494,7 +494,7 @@ fn entity_mismatch(gt: &[&str], ans: &[&str]) -> bool {
     missing && replacement
 }
 
-fn fast_score_with_question(question: &str, truth: &str, answer: &str) -> f32 {
+fn fast_score_with_question(_question: &str, truth: &str, answer: &str) -> f32 {
     if answer.trim().is_empty() { return 0.0; }
     if truth.trim().eq_ignore_ascii_case(answer.trim()) { return 1.0; }
     let mut t = [""; FAST_MAX_WORDS];
@@ -526,7 +526,10 @@ fn fast_score_with_question(question: &str, truth: &str, answer: &str) -> f32 {
     let mut hit_numbers = 0usize;
     for (gi, word) in t[..tn].iter().enumerate() {
         let w = fast_weight(word);
-        let in_question = question.split_whitespace().any(|q| fast_same(word, q));
+        // Ground-truth content remains answer-bearing even when the question
+        // repeats the entity or identifier. Suppressing it can reward answers
+        // that omit the subject being assessed.
+        let in_question = false;
         if !in_question { truth_weight += w; }
         if word.chars().any(|c| c.is_ascii_digit()) {
             gt_numbers += 1;
@@ -865,5 +868,25 @@ mod tests {
         let opposite = fast_score_with_question("Assess the proposal for fraud.", truth, "The proposal is genuine and should be allowed.");
         assert!(equivalent > opposite);
         assert!(equivalent > 0.05);
+    }
+
+    #[test]
+    fn adversarial_matrix_covers_required_answer_shapes() {
+        let cases = [
+            ("paraphrase", "The proposal contains fabricated evidence.", "The evidence in the proposal is fabricated.", "The proposal discusses evidence."),
+            ("negation", "The proposal is not legitimate.", "The proposal is not legitimate.", "The proposal is legitimate."),
+            ("contradiction", "The proposal should be blocked.", "The proposal should be blocked.", "The proposal should be allowed."),
+            ("topical wrong", "The proposal contains fabricated evidence.", "The proposal contains fabricated evidence.", "The proposal contains verified evidence."),
+            ("padding", "The proposal contains fabricated evidence.", "The proposal contains fabricated evidence.", "The proposal contains fabricated evidence and many unrelated details about weather, sports, cooking, and travel."),
+            ("missing evidence", "The proposal contains fabricated evidence and requests 3.1 million tokens.", "The proposal contains fabricated evidence and requests 3.1 million tokens.", "The proposal contains fabricated evidence."),
+            ("exact", "The proposal is fraudulent.", "The proposal is fraudulent.", "The proposal is fraudulent, but more evidence is required."),
+        ];
+        for (name, truth, good, bad) in cases {
+            let good_score = fast_score_with_question(name, truth, good);
+            let bad_score = fast_score_with_question(name, truth, bad);
+            assert!(good_score > bad_score, "{name}: good={good_score} bad={bad_score}");
+            assert!(good_score.is_finite() && bad_score.is_finite());
+            assert!((0.0..=1.0).contains(&good_score) && (0.0..=1.0).contains(&bad_score));
+        }
     }
 }
