@@ -16,6 +16,8 @@
 #![allow(clippy::missing_safety_doc)]
 
 extern crate alloc;
+#[cfg(test)]
+extern crate std;
 
 mod allocator;
 mod bm25;
@@ -260,6 +262,14 @@ fn is_opposite(a: &str, b: &str) -> bool {
             && matches_any(a, &["unverified", "unverifiable"]))
         || (matches_any(a, &["true"]) && matches_any(b, &["false"]))
         || (matches_any(b, &["true"]) && matches_any(a, &["false"]))
+        || (matches_any(a, &["reduced", "decreased", "lower", "lowered", "fell", "fall"])
+            && matches_any(b, &["increased", "rose", "raised", "higher", "grew", "growth"]))
+        || (matches_any(b, &["reduced", "decreased", "lower", "lowered", "fell", "fall"])
+            && matches_any(a, &["increased", "rose", "raised", "higher", "grew", "growth"]))
+        || (matches_any(a, &["bullish", "positive", "upbeat", "optimistic"])
+            && matches_any(b, &["bearish", "negative", "pessimistic"]))
+        || (matches_any(b, &["bullish", "positive", "upbeat", "optimistic"])
+            && matches_any(a, &["bearish", "negative", "pessimistic"]))
 }
 
 fn has_contradiction(truth: &str, answer: &str) -> bool {
@@ -329,6 +339,8 @@ fn fast_same(a: &str, b: &str) -> bool {
         || same_group(&["authorize", "authorized", "authorizes", "authorization"])
         || same_group(&["transfer", "transfers", "transferred", "transferring"])
         || same_group(&["approve", "approved", "approval", "approves"])
+        || same_group(&["bullish", "positive", "upbeat", "optimistic"])
+        || same_group(&["bearish", "negative", "pessimistic", "dovish"])
 }
 
 fn fast_score(truth: &str, answer: &str) -> f32 {
@@ -373,6 +385,60 @@ fn gram_similarity(a: &str, b: &str, width: usize) -> f32 {
     2.0 * shared as f32 / (na + nb) as f32
 }
 
+fn numeric_value(word: &str) -> Option<f32> {
+    let cleaned = fast_clean(word);
+    if !cleaned.chars().any(|c| c.is_ascii_digit()) { return None; }
+    let mut value = 0.0f32;
+    let mut fraction = 0.1f32;
+    let mut after_dot = false;
+    let mut saw = false;
+    for c in cleaned.chars() {
+        if c.is_ascii_digit() {
+            saw = true;
+            if after_dot { value += (c as u8 - b'0') as f32 * fraction; fraction *= 0.1; }
+            else { value = value * 10.0 + (c as u8 - b'0') as f32; }
+        } else if c == '.' && !after_dot { after_dot = true; }
+    }
+    if !saw { return None; }
+    let lower = cleaned.to_ascii_lowercase();
+    let scale = if lower.ends_with('k') { 1e3 } else if lower.ends_with('m') { 1e6 }
+        else if lower.ends_with('b') { 1e9 } else if lower.ends_with('t') { 1e12 } else { 1.0 };
+    Some(value * scale)
+}
+
+fn numeric_match(gt: &[&str], gi: usize, ans: &[&str], ai: usize) -> bool {
+    if fast_same(gt[gi], ans[ai]) { return true; }
+    let gv = match numeric_value(gt[gi]) { Some(v) => v, None => return false };
+    let av = match numeric_value(ans[ai]) { Some(v) => v, None => return false };
+    let unit = |words: &[&str], i: usize| -> f32 {
+        if i + 1 >= words.len() { return 1.0; }
+        match fast_clean(words[i + 1]).to_ascii_lowercase().as_str() {
+            "thousand" | "k" => 1e3,
+            "million" | "m" => 1e6,
+            "billion" | "bn" | "b" => 1e9,
+            "trillion" | "tn" | "t" => 1e12,
+            _ => 1.0,
+        }
+    };
+    let gv = gv * unit(gt, gi);
+    let av = av * unit(ans, ai);
+    gv > 0.0 && ((gv - av).abs() / gv) < 0.005
+}
+
+fn entity_mismatch(gt: &[&str], ans: &[&str]) -> bool {
+    let mut missing = false;
+    let mut replacement = false;
+    for g in gt {
+        let w = fast_clean(g);
+        if w.len() > 1 && w.as_bytes()[0].is_ascii_uppercase() && !ans.iter().any(|a| fast_same(w, a)) { missing = true; }
+    }
+    for a in ans {
+        let w = fast_clean(a);
+        if w.len() > 1 && w.as_bytes()[0].is_ascii_uppercase() && !gt.iter().any(|g| fast_same(w, g)) { replacement = true; }
+    }
+    missing && replacement
+}
+
 fn fast_score_with_question(question: &str, truth: &str, answer: &str) -> f32 {
     if answer.trim().is_empty() { return 0.0; }
     if truth.trim().eq_ignore_ascii_case(answer.trim()) { return 1.0; }
@@ -394,13 +460,13 @@ fn fast_score_with_question(question: &str, truth: &str, answer: &str) -> f32 {
     let mut covered_weight = 0.0f32;
     let mut gt_numbers = 0usize;
     let mut hit_numbers = 0usize;
-    for word in &t[..tn] {
+    for (gi, word) in t[..tn].iter().enumerate() {
         let w = fast_weight(word);
         let in_question = question.split_whitespace().any(|q| fast_same(word, q));
         if !in_question { truth_weight += w; }
         if word.chars().any(|c| c.is_ascii_digit()) {
             gt_numbers += 1;
-            if a[..an].iter().any(|other| fast_same(word, other)) { hit_numbers += 1; }
+            if a[..an].iter().enumerate().any(|(ai, _)| numeric_match(&t[..tn], gi, &a[..an], ai)) { hit_numbers += 1; }
         }
         if !in_question && a[..an].iter().any(|other| fast_same(word, other)) { covered_weight += w; }
     }
@@ -435,9 +501,10 @@ fn fast_score_with_question(question: &str, truth: &str, answer: &str) -> f32 {
     let mut score = 0.76 * overlap + 0.16 * grams + 0.08 * (0.5 * bigram + 0.5 * lcs);
     if gt_numbers > 0 {
         score *= 0.4 + 0.6 * (hit_numbers as f32 / gt_numbers as f32);
-        let wrong = a[..an].iter().filter(|word| word.chars().any(|c| c.is_ascii_digit()) && !t[..tn].iter().any(|other| fast_same(word, other))).count();
+        let wrong = a[..an].iter().enumerate().filter(|(ai, word)| word.chars().any(|c| c.is_ascii_digit()) && !t[..tn].iter().enumerate().any(|(gi, _)| numeric_match(&t[..tn], gi, &a[..an], *ai))).count();
         if wrong > 0 && hit_numbers < gt_numbers { score *= 0.05; }
     }
+    if entity_mismatch(&t[..tn], &a[..an]) { score *= 0.20; }
     let full = matched == an && matched == tn;
     if full && bigram < 0.15 && tn >= 3 { score *= 0.85; }
     if has_contradiction(truth, answer) { score *= 0.30; }
@@ -706,5 +773,28 @@ mod tests {
         let truth = "France is the capital of Paris.";
         let reordered = "Paris is the capital of France.";
         assert!(fast_score(truth, truth) > fast_score(truth, reordered));
+    }
+
+    #[test]
+    fn public_adversarial_probe_report() {
+        // Cases are copied from the public telegraph-wasm-check examples. They are
+        // advisory probes, not claims about Telegraph's hidden evaluation set.
+        let probes = [
+            ("bullish or bearish", "bullish", "positive", "bearish"),
+            ("URL verdict", "scam", "fraudulent", "safe"),
+            ("direction and figure", "The treatment reduced mortality by 30% relative to placebo.", "Mortality fell 30% versus placebo under the treatment.", "The treatment increased mortality by 30% relative to placebo."),
+            ("entity and figure", "Apple reported Q3 revenue of $3.42 billion.", "Q3 revenue came in at 3,420 million dollars.", "Microsoft reported Q3 revenue of $3.42 billion."),
+        ];
+        let mut ordered = 0usize;
+        for (name, truth, good, bad) in probes {
+            let good_score = fast_score_with_question(name, truth, good);
+            let bad_score = fast_score_with_question(name, truth, bad);
+            std::println!("probe={name} good={good_score:.4} bad={bad_score:.4} margin={:.4}", good_score - bad_score);
+            assert!((0.0..=1.0).contains(&good_score));
+            assert!((0.0..=1.0).contains(&bad_score));
+            if good_score > bad_score { ordered += 1; }
+        }
+        std::println!("public_probe_ordering={ordered}/4");
+        assert_eq!(ordered, 4);
     }
 }
