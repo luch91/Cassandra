@@ -296,11 +296,17 @@ fn fast_tokens<'a>(text: &'a str, out: &mut [&'a str; FAST_MAX_WORDS]) -> usize 
 fn fast_same(a: &str, b: &str) -> bool {
     let a = fast_clean(a);
     let b = fast_clean(b);
+    let same_group = |terms: &[&str]| matches_any(a, terms) && matches_any(b, terms);
     a.eq_ignore_ascii_case(b)
         || (is_fraud_term(a) && is_fraud_term(b))
         || (is_safe_term(a) && is_safe_term(b))
-        || (matches_any(a, &["complete", "completed", "completes", "completion"])
-            && matches_any(b, &["complete", "completed", "completes", "completion"]))
+        || same_group(&["complete", "completed", "completes", "completion"])
+        || same_group(&["meet", "meets", "met", "meeting"])
+        || same_group(&["verify", "verified", "verification", "verifies"])
+        || same_group(&["support", "supports", "supported", "supporting"])
+        || same_group(&["authorize", "authorized", "authorizes", "authorization"])
+        || same_group(&["transfer", "transfers", "transferred", "transferring"])
+        || same_group(&["approve", "approved", "approval", "approves"])
 }
 
 fn fast_score(truth: &str, answer: &str) -> f32 {
