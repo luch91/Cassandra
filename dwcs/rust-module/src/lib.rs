@@ -240,6 +240,16 @@ fn is_polarity_word(word: &str) -> bool {
                 "transfers",
                 "transferred",
                 "transferring",
+                "authentic",
+                "inauthentic",
+                "legitimate",
+                "illegitimate",
+                "authorized",
+                "unauthorized",
+                "accurate",
+                "inaccurate",
+                "detected",
+                "undetected",
             ],
         )
 }
@@ -270,6 +280,10 @@ fn is_opposite(a: &str, b: &str) -> bool {
             && matches_any(b, &["bearish", "negative", "pessimistic"]))
         || (matches_any(b, &["bullish", "positive", "upbeat", "optimistic"])
             && matches_any(a, &["bearish", "negative", "pessimistic"]))
+        || (matches_any(a, &["authentic", "legitimate", "authorized", "approved", "verified", "accurate", "detected"])
+            && matches_any(b, &["inauthentic", "illegitimate", "unauthorized", "rejected", "unverified", "inaccurate", "undetected"]))
+        || (matches_any(b, &["authentic", "legitimate", "authorized", "approved", "verified", "accurate", "detected"])
+            && matches_any(a, &["inauthentic", "illegitimate", "unauthorized", "rejected", "unverified", "inaccurate", "undetected"]))
 }
 
 fn has_contradiction(truth: &str, answer: &str) -> bool {
@@ -425,6 +439,10 @@ fn numeric_match(gt: &[&str], gi: usize, ans: &[&str], ai: usize) -> bool {
     gv > 0.0 && ((gv - av).abs() / gv) < 0.005
 }
 
+fn token_match(gt: &[&str], gi: usize, ans: &[&str], ai: usize) -> bool {
+    fast_same(gt[gi], ans[ai]) || numeric_match(gt, gi, ans, ai)
+}
+
 fn entity_mismatch(gt: &[&str], ans: &[&str]) -> bool {
     let mut missing = false;
     let mut replacement = false;
@@ -451,10 +469,19 @@ fn fast_score_with_question(question: &str, truth: &str, answer: &str) -> f32 {
     let mut matched = 0usize;
     let mut answer_weight = 0.0f32;
     let mut matched_weight = 0.0f32;
-    for word in &a[..an] {
+    let mut used_truth = [false; FAST_MAX_WORDS];
+    for (ai, word) in a[..an].iter().enumerate() {
         let w = fast_weight(word);
         answer_weight += w;
-        if t[..tn].iter().any(|other| fast_same(word, other)) { matched += 1; matched_weight += w; }
+        let mut found = false;
+        for (gi, _) in t[..tn].iter().enumerate() {
+            if !used_truth[gi] && token_match(&t[..tn], gi, &a[..an], ai) {
+                used_truth[gi] = true;
+                found = true;
+                break;
+            }
+        }
+        if found { matched += 1; matched_weight += w; }
     }
     let mut truth_weight = 0.0f32;
     let mut covered_weight = 0.0f32;
@@ -468,7 +495,7 @@ fn fast_score_with_question(question: &str, truth: &str, answer: &str) -> f32 {
             gt_numbers += 1;
             if a[..an].iter().enumerate().any(|(ai, _)| numeric_match(&t[..tn], gi, &a[..an], ai)) { hit_numbers += 1; }
         }
-        if !in_question && a[..an].iter().any(|other| fast_same(word, other)) { covered_weight += w; }
+        if !in_question && a[..an].iter().enumerate().any(|(ai, _)| token_match(&t[..tn], gi, &a[..an], ai)) { covered_weight += w; }
     }
     let precision = if answer_weight > 0.0 { matched_weight / answer_weight } else { 0.0 };
     let recall = if truth_weight > 0.0 { covered_weight / truth_weight } else { 0.0 };
@@ -479,7 +506,7 @@ fn fast_score_with_question(question: &str, truth: &str, answer: &str) -> f32 {
 
     let mut bigram_match = 0usize;
     for i in 0..an.saturating_sub(1) {
-        if (0..tn.saturating_sub(1)).any(|j| fast_same(a[i], t[j]) && fast_same(a[i + 1], t[j + 1])) {
+        if (0..tn.saturating_sub(1)).any(|j| token_match(&t[..tn], j, &a[..an], i) && token_match(&t[..tn], j + 1, &a[..an], i + 1)) {
             bigram_match += 1;
         }
     }
@@ -492,7 +519,7 @@ fn fast_score_with_question(question: &str, truth: &str, answer: &str) -> f32 {
     for i in 0..an {
         let mut next = [0u16; FAST_MAX_WORDS + 1];
         for j in 0..tn {
-            next[j + 1] = if fast_same(a[i], t[j]) { prev[j] + 1 } else { prev[j + 1].max(next[j]) };
+            next[j + 1] = if token_match(&t[..tn], j, &a[..an], i) { prev[j] + 1 } else { prev[j + 1].max(next[j]) };
         }
         prev = next;
     }
