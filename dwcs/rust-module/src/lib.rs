@@ -480,16 +480,26 @@ fn token_match(gt: &[&str], gi: usize, ans: &[&str], ai: usize) -> bool {
     fast_same(gt[gi], ans[ai]) || numeric_match(gt, gi, ans, ai)
 }
 
-fn entity_mismatch(gt: &[&str], ans: &[&str]) -> bool {
+fn entity_mismatch(question: &str, gt: &[&str], ans: &[&str]) -> bool {
     let mut missing = false;
     let mut replacement = false;
+    let question_words: [&str; FAST_MAX_WORDS] = [""; FAST_MAX_WORDS];
+    let mut qw = question_words;
+    let qn = fast_tokens(question, &mut qw);
+    let is_entity = |w: &str| {
+        let cleaned = fast_clean(w);
+        let lower = cleaned.to_ascii_lowercase();
+        let common = matches_any(&lower, &["proposal", "project", "report", "evidence", "transaction", "address", "claim", "case", "the", "this", "that"]);
+        (cleaned.len() > 1 && cleaned.as_bytes()[0].is_ascii_uppercase())
+            || (cleaned.len() >= 4 && !common && qw[..qn].iter().any(|q| fast_same(cleaned, q)))
+    };
     for g in gt {
         let w = fast_clean(g);
-        if w.len() > 1 && w.as_bytes()[0].is_ascii_uppercase() && !ans.iter().any(|a| fast_same(w, a)) { missing = true; }
+        if is_entity(w) && !ans.iter().any(|a| fast_same(w, a)) { missing = true; }
     }
     for a in ans {
         let w = fast_clean(a);
-        if w.len() > 1 && w.as_bytes()[0].is_ascii_uppercase() && !gt.iter().any(|g| fast_same(w, g)) { replacement = true; }
+        if is_entity(w) && !gt.iter().any(|g| fast_same(w, g)) { replacement = true; }
     }
     missing && replacement
 }
@@ -571,7 +581,7 @@ fn fast_score_with_question(_question: &str, truth: &str, answer: &str) -> f32 {
         let wrong = a[..an].iter().enumerate().filter(|(ai, word)| word.chars().any(|c| c.is_ascii_digit()) && !t[..tn].iter().enumerate().any(|(gi, _)| numeric_match(&t[..tn], gi, &a[..an], *ai))).count();
         if wrong > 0 && hit_numbers < gt_numbers { score *= 0.05; }
     }
-    if entity_mismatch(&t[..tn], &a[..an]) { score *= 0.20; }
+    if entity_mismatch(_question, &t[..tn], &a[..an]) { score *= 0.20; }
     let full = matched == an && matched == tn;
     if full && bigram < 0.15 && tn >= 3 { score *= 0.85; }
     if has_contradiction(truth, answer) { score *= 0.30; }
@@ -888,5 +898,14 @@ mod tests {
             assert!(good_score.is_finite() && bad_score.is_finite());
             assert!((0.0..=1.0).contains(&good_score) && (0.0..=1.0).contains(&bad_score));
         }
+    }
+
+    #[test]
+    fn entity_probe_catches_question_linked_subject_substitution() {
+        let question = "Is acme proposal fraudulent?";
+        let truth = "acme proposal contains fabricated evidence.";
+        let good = fast_score_with_question(question, truth, "acme proposal contains fabricated evidence.");
+        let wrong = fast_score_with_question(question, truth, "globex proposal contains fabricated evidence.");
+        assert!(good > wrong);
     }
 }
