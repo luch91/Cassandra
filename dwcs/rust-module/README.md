@@ -1,6 +1,6 @@
 # dwcs-scoring-module
 
-The real, deployable DWCS implementation. The production entry point uses a bounded lexical ensemble and per-call contradiction penalties so fixture evaluation completes within the validator time budget. The MiniLM implementation remains available for local research comparisons.
+The real, deployable DWCS implementation. The production entry point follows Telegraph's published baseline: MiniLM-L6-v2 semantic similarity, BM25 lexical overlap, and length quality combined into one score. The module also exposes the cached and diagnostic functions used by the validator integration.
 
 ## Test on the host (no WASM tooling needed)
 
