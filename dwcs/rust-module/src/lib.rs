@@ -23,6 +23,16 @@ mod embed;
 mod math;
 mod tokenizer;
 
+const EMBED_DIM: usize = 384;
+const BREAKDOWN_DIM: usize = 5;
+static mut EMBED_BUF: [f32; EMBED_DIM] = [0.0; EMBED_DIM];
+static mut BREAKDOWN_BUF: [f32; BREAKDOWN_DIM] = [0.0; BREAKDOWN_DIM];
+const IDX_RELEVANCE: usize = 0;
+const IDX_CORRECTNESS: usize = 1;
+const IDX_LEXICAL: usize = 2;
+const IDX_LENGTH: usize = 3;
+const IDX_COMPOSITE: usize = 4;
+
 // ── Composite scoring weights ─────────────────────────────────────────────────
 // Single source of truth for rank_answer's weighted composite.
 const W_RELEVANCE: f32 = 0.25; // cosine(question,     miner_answer)
@@ -49,7 +59,6 @@ unsafe fn read_str<'a>(ptr: i32, len: i32) -> &'a str {
 ///
 /// # Safety
 /// `ptr` must be 4-byte aligned; `len` is element count, not byte count.
-#[cfg(any())]
 #[inline]
 unsafe fn read_f32s<'a>(ptr: i32, len: i32) -> &'a [f32] {
     core::slice::from_raw_parts(ptr as *const f32, len as usize)
@@ -108,6 +117,19 @@ fn composite(relevance: f32, correctness: f32, lexical: f32, len_quality: f32) -
         + W_LEXICAL * lexical
         + W_LENGTH * len_quality;
     math::clamp01(score)
+}
+
+#[inline]
+fn calibrated_score(ground_truth: &str, miner_answer: &str, raw: f32) -> f32 {
+    if ground_truth.trim().eq_ignore_ascii_case(miner_answer.trim()) {
+        return 1.0;
+    }
+    let penalized = if has_contradiction(ground_truth, miner_answer) {
+        raw * 0.30
+    } else {
+        raw
+    };
+    math::clamp01(penalized * penalized)
 }
 
 const MAX_WORDS: usize = 256;
@@ -381,8 +403,10 @@ pub unsafe extern "C" fn rank_answer(
         return 0.0;
     }
 
-    let _ = question;
-    fast_score(ground_truth, miner_answer)
+    let (relevance, correctness, lexical, len_quality) =
+        compute_signals(question, ground_truth, miner_answer);
+    let raw = composite(relevance, correctness, lexical, len_quality);
+    calibrated_score(ground_truth, miner_answer, raw)
 }
 
 /// Composite scorer variant for callers that already have `question` and
@@ -409,7 +433,6 @@ pub unsafe extern "C" fn rank_answer(
 ///
 /// `gt_ptr`/`gt_len` is the ground_truth TEXT, still required for BM25
 /// (lexical overlap has no vector representation to precompute).
-#[cfg(any())]
 #[no_mangle]
 pub unsafe extern "C" fn rank_answer_cached(
     q_vec_ptr: i32,
@@ -435,7 +458,8 @@ pub unsafe extern "C" fn rank_answer_cached(
     let (relevance, correctness, lexical, len_quality) =
         signals_from_vecs(q_vec, gt_vec, ground_truth, miner_answer, &ma_vec);
 
-    composite(relevance, correctness, lexical, len_quality)
+    let raw = composite(relevance, correctness, lexical, len_quality);
+    calibrated_score(ground_truth, miner_answer, raw)
 }
 
 /// Per-signal breakdown scorer.
@@ -452,7 +476,6 @@ pub unsafe extern "C" fn rank_answer_cached(
 ///   [4] composite     - weighted sum, clamped to [0,1]
 ///
 /// Returns 0 (all signals 0) for empty/whitespace-only miner answers.
-#[cfg(any())]
 #[no_mangle]
 pub unsafe extern "C" fn breakdown_answer(
     q_ptr: i32,
@@ -474,7 +497,11 @@ pub unsafe extern "C" fn breakdown_answer(
     let (relevance, correctness, lexical, len_quality) =
         compute_signals(question, ground_truth, miner_answer);
 
-    let composite_score = composite(relevance, correctness, lexical, len_quality);
+    let composite_score = calibrated_score(
+        ground_truth,
+        miner_answer,
+        composite(relevance, correctness, lexical, len_quality),
+    );
 
     BREAKDOWN_BUF[IDX_RELEVANCE] = relevance;
     BREAKDOWN_BUF[IDX_CORRECTNESS] = correctness;
@@ -490,7 +517,6 @@ pub unsafe extern "C" fn breakdown_answer(
 /// Writes the 384-dim L2-normalised float32 vector into the static `EMBED_BUF`
 /// and returns its byte offset in WASM linear memory so the Go host can read
 /// 384 × 4 = 1 536 bytes from that address.
-#[cfg(any())]
 #[no_mangle]
 pub unsafe extern "C" fn embed(text_ptr: i32, text_len: i32) -> i32 {
     let text = read_str(text_ptr, text_len);
@@ -504,7 +530,6 @@ pub unsafe extern "C" fn embed(text_ptr: i32, text_len: i32) -> i32 {
 /// Cosine similarity between two float32 vectors already in WASM memory.
 ///
 /// `dim` is the number of elements (not bytes). Returns a value in [0, 1].
-#[cfg(any())]
 #[no_mangle]
 pub unsafe extern "C" fn cosine_sim(ptr_a: i32, ptr_b: i32, dim: i32) -> f32 {
     let a = read_f32s(ptr_a, dim);
@@ -513,7 +538,6 @@ pub unsafe extern "C" fn cosine_sim(ptr_a: i32, ptr_b: i32, dim: i32) -> f32 {
 }
 
 /// BM25 lexical relevance of `doc` against `query`, normalised to [0, 1].
-#[cfg(any())]
 #[no_mangle]
 pub unsafe extern "C" fn bm25_score(q_ptr: i32, q_len: i32, doc_ptr: i32, doc_len: i32) -> f32 {
     let query = read_str(q_ptr, q_len);
@@ -582,5 +606,14 @@ mod tests {
         let opposite = fast_score(truth, "The proposal is legitimate and safe.");
         assert!(exact >= 0.75);
         assert!(exact > opposite && opposite > unrelated);
+    }
+
+    #[test]
+    fn calibrated_score_widens_the_known_margin() {
+        let truth = "The proposal contains fabricated evidence and should be blocked.";
+        let good = calibrated_score(truth, "Fabricated evidence indicates fraud and the proposal should be blocked.", 0.8524);
+        let bad = calibrated_score(truth, "The proposal is legitimate and safe.", 0.5604);
+        assert!(good > bad);
+        assert!(good - bad > 0.4);
     }
 }
