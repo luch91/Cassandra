@@ -332,6 +332,48 @@ fn fast_same(a: &str, b: &str) -> bool {
 }
 
 fn fast_score(truth: &str, answer: &str) -> f32 {
+    fast_score_with_question("", truth, answer)
+}
+
+fn fast_weight(word: &str) -> f32 {
+    let lower = word.to_ascii_lowercase();
+    if lower.chars().any(|c| c.is_ascii_digit()) { return 3.0; }
+    if matches_any(&lower, &["a", "an", "the", "and", "or", "of", "to", "in", "on", "for", "is", "are", "was", "were", "with", "that", "this"]) {
+        return 0.25;
+    }
+    1.0 + (word.len().min(12) as f32 - 4.0).max(0.0) * 0.08
+}
+
+fn gram_similarity(a: &str, b: &str, width: usize) -> f32 {
+    let mut ga = [0u32; 256];
+    let mut gb = [0u32; 256];
+    let mut na = 0usize;
+    let mut nb = 0usize;
+    let aa = a.as_bytes();
+    let bb = b.as_bytes();
+    let mut i = 0usize;
+    while i + width <= aa.len() && na < ga.len() {
+        let mut h = 2166136261u32;
+        let mut j = 0usize;
+        while j < width { h = (h ^ aa[i + j].to_ascii_lowercase() as u32).wrapping_mul(16777619); j += 1; }
+        if !ga[..na].contains(&h) { ga[na] = h; na += 1; }
+        i += 1;
+    }
+    i = 0;
+    while i + width <= bb.len() && nb < gb.len() {
+        let mut h = 2166136261u32;
+        let mut j = 0usize;
+        while j < width { h = (h ^ bb[i + j].to_ascii_lowercase() as u32).wrapping_mul(16777619); j += 1; }
+        if !gb[..nb].contains(&h) { gb[nb] = h; nb += 1; }
+        i += 1;
+    }
+    if na == 0 || nb == 0 { return 0.0; }
+    let mut shared = 0usize;
+    for h in &ga[..na] { if gb[..nb].contains(h) { shared += 1; } }
+    2.0 * shared as f32 / (na + nb) as f32
+}
+
+fn fast_score_with_question(question: &str, truth: &str, answer: &str) -> f32 {
     if answer.trim().is_empty() { return 0.0; }
     if truth.trim().eq_ignore_ascii_case(answer.trim()) { return 1.0; }
     let mut t = [""; FAST_MAX_WORDS];
@@ -341,13 +383,32 @@ fn fast_score(truth: &str, answer: &str) -> f32 {
     if tn == 0 || an == 0 { return 0.0; }
 
     let mut matched = 0usize;
+    let mut answer_weight = 0.0f32;
+    let mut matched_weight = 0.0f32;
     for word in &a[..an] {
-        if t[..tn].iter().any(|other| fast_same(word, other)) { matched += 1; }
+        let w = fast_weight(word);
+        answer_weight += w;
+        if t[..tn].iter().any(|other| fast_same(word, other)) { matched += 1; matched_weight += w; }
     }
-    let precision = matched as f32 / an as f32;
-    let recall = matched as f32 / tn as f32;
+    let mut truth_weight = 0.0f32;
+    let mut covered_weight = 0.0f32;
+    let mut gt_numbers = 0usize;
+    let mut hit_numbers = 0usize;
+    for word in &t[..tn] {
+        let w = fast_weight(word);
+        let in_question = question.split_whitespace().any(|q| fast_same(word, q));
+        if !in_question { truth_weight += w; }
+        if word.chars().any(|c| c.is_ascii_digit()) {
+            gt_numbers += 1;
+            if a[..an].iter().any(|other| fast_same(word, other)) { hit_numbers += 1; }
+        }
+        if !in_question && a[..an].iter().any(|other| fast_same(word, other)) { covered_weight += w; }
+    }
+    let precision = if answer_weight > 0.0 { matched_weight / answer_weight } else { 0.0 };
+    let recall = if truth_weight > 0.0 { covered_weight / truth_weight } else { 0.0 };
     let overlap = if precision + recall == 0.0 { 0.0 } else {
-        2.0 * precision * recall / (precision + recall)
+        let beta2 = 0.36;
+        (1.0 + beta2) * precision * recall / (beta2 * precision + recall)
     };
 
     let mut bigram_match = 0usize;
@@ -370,7 +431,15 @@ fn fast_score(truth: &str, answer: &str) -> f32 {
         prev = next;
     }
     let lcs = prev[tn] as f32 / an.max(tn) as f32;
-    let mut score = (overlap + bigram + lcs) / 3.0;
+    let grams = gram_similarity(truth, answer, 3);
+    let mut score = 0.76 * overlap + 0.16 * grams + 0.08 * (0.5 * bigram + 0.5 * lcs);
+    if gt_numbers > 0 {
+        score *= 0.4 + 0.6 * (hit_numbers as f32 / gt_numbers as f32);
+        let wrong = a[..an].iter().filter(|word| word.chars().any(|c| c.is_ascii_digit()) && !t[..tn].iter().any(|other| fast_same(word, other))).count();
+        if wrong > 0 && hit_numbers < gt_numbers { score *= 0.05; }
+    }
+    let full = matched == an && matched == tn;
+    if full && bigram < 0.15 && tn >= 3 { score *= 0.85; }
     if has_contradiction(truth, answer) { score *= 0.30; }
     math::clamp01(score)
 }
@@ -405,7 +474,9 @@ pub unsafe extern "C" fn rank_answer(
 
     let (relevance, correctness, lexical, len_quality) =
         compute_signals(question, ground_truth, miner_answer);
-    let raw = composite(relevance, correctness, lexical, len_quality);
+    let baseline = composite(relevance, correctness, lexical, len_quality);
+    let lexical_semantic = fast_score_with_question(question, ground_truth, miner_answer);
+    let raw = math::clamp01(0.80 * lexical_semantic + 0.20 * baseline);
     calibrated_score(ground_truth, miner_answer, raw)
 }
 
@@ -458,7 +529,8 @@ pub unsafe extern "C" fn rank_answer_cached(
     let (relevance, correctness, lexical, len_quality) =
         signals_from_vecs(q_vec, gt_vec, ground_truth, miner_answer, &ma_vec);
 
-    let raw = composite(relevance, correctness, lexical, len_quality);
+    let baseline = composite(relevance, correctness, lexical, len_quality);
+    let raw = math::clamp01(0.80 * fast_score(ground_truth, miner_answer) + 0.20 * baseline);
     calibrated_score(ground_truth, miner_answer, raw)
 }
 
@@ -500,7 +572,8 @@ pub unsafe extern "C" fn breakdown_answer(
     let composite_score = calibrated_score(
         ground_truth,
         miner_answer,
-        composite(relevance, correctness, lexical, len_quality),
+        math::clamp01(0.80 * fast_score_with_question(question, ground_truth, miner_answer)
+            + 0.20 * composite(relevance, correctness, lexical, len_quality)),
     );
 
     BREAKDOWN_BUF[IDX_RELEVANCE] = relevance;
@@ -615,5 +688,23 @@ mod tests {
         let bad = calibrated_score(truth, "The proposal is legitimate and safe.", 0.5604);
         assert!(good > bad);
         assert!(good - bad > 0.4);
+    }
+
+    #[test]
+    fn salience_score_penalises_missing_or_changed_figures() {
+        let truth = "The proposal requests 3.1 million tokens and should be rejected.";
+        let good = fast_score_with_question("Should this proposal pass?", truth, "The proposal requests 3.1 million tokens and should be rejected.");
+        let missing = fast_score_with_question("Should this proposal pass?", truth, "The proposal requests tokens and should be rejected.");
+        let changed = fast_score_with_question("Should this proposal pass?", truth, "The proposal requests 8.4 million tokens and should be rejected.");
+        assert!(good > 0.75);
+        assert!(good > missing);
+        assert!(missing > changed);
+    }
+
+    #[test]
+    fn salience_score_penalises_same_words_in_wrong_order() {
+        let truth = "France is the capital of Paris.";
+        let reordered = "Paris is the capital of France.";
+        assert!(fast_score(truth, truth) > fast_score(truth, reordered));
     }
 }
