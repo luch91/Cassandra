@@ -134,6 +134,14 @@ fn calibrated_score(ground_truth: &str, miner_answer: &str, raw: f32) -> f32 {
     math::clamp01(penalized * penalized)
 }
 
+#[inline]
+fn production_score(ground_truth: &str, miner_answer: &str, raw: f32) -> f32 {
+    if ground_truth.trim().eq_ignore_ascii_case(miner_answer.trim()) { return 1.0; }
+    // fast_score already applies contradiction penalties. Apply only the
+    // monotonic contrast here so a contradictory answer is not penalized twice.
+    math::clamp01(raw * raw)
+}
+
 const MAX_WORDS: usize = 256;
 
 fn clean_word(word: &str) -> &str {
@@ -588,7 +596,7 @@ pub unsafe extern "C" fn rank_answer(
     // available through the diagnostic exports, but running it for every
     // validator fixture can exceed the evaluation time budget.
     let raw = fast_score_with_question(question, ground_truth, miner_answer);
-    calibrated_score(ground_truth, miner_answer, raw)
+    production_score(ground_truth, miner_answer, raw)
 }
 
 /// Composite scorer variant for callers that already have `question` and
