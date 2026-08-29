@@ -615,7 +615,6 @@ pub unsafe extern "C" fn rank_answer(
 ///
 /// `gt_ptr`/`gt_len` is the ground_truth TEXT, still required for BM25
 /// (lexical overlap has no vector representation to precompute).
-#[no_mangle]
 pub unsafe extern "C" fn rank_answer_cached(
     q_vec_ptr: i32,
     gt_vec_ptr: i32,
@@ -692,7 +691,6 @@ pub unsafe extern "C" fn breakdown_answer(
 /// Writes the 384-dim L2-normalised float32 vector into the static `EMBED_BUF`
 /// and returns its byte offset in WASM linear memory so the Go host can read
 /// 384 × 4 = 1 536 bytes from that address.
-#[no_mangle]
 pub unsafe extern "C" fn embed(text_ptr: i32, text_len: i32) -> i32 {
     let text = read_str(text_ptr, text_len);
     let enc = tokenizer::tokenize(text);
@@ -705,7 +703,6 @@ pub unsafe extern "C" fn embed(text_ptr: i32, text_len: i32) -> i32 {
 /// Cosine similarity between two float32 vectors already in WASM memory.
 ///
 /// `dim` is the number of elements (not bytes). Returns a value in [0, 1].
-#[no_mangle]
 pub unsafe extern "C" fn cosine_sim(ptr_a: i32, ptr_b: i32, dim: i32) -> f32 {
     let a = read_f32s(ptr_a, dim);
     let b = read_f32s(ptr_b, dim);
@@ -713,7 +710,6 @@ pub unsafe extern "C" fn cosine_sim(ptr_a: i32, ptr_b: i32, dim: i32) -> f32 {
 }
 
 /// BM25 lexical relevance of `doc` against `query`, normalised to [0, 1].
-#[no_mangle]
 pub unsafe extern "C" fn bm25_score(q_ptr: i32, q_len: i32, doc_ptr: i32, doc_len: i32) -> f32 {
     let query = read_str(q_ptr, q_len);
     let doc = read_str(doc_ptr, doc_len);
