@@ -250,6 +250,16 @@ fn is_polarity_word(word: &str) -> bool {
                 "inaccurate",
                 "detected",
                 "undetected",
+                "blocked",
+                "block",
+                "allowed",
+                "allow",
+                "accepted",
+                "suspicious",
+                "malicious",
+                "risky",
+                "benign",
+                "harmless",
             ],
         )
 }
@@ -284,6 +294,14 @@ fn is_opposite(a: &str, b: &str) -> bool {
             && matches_any(b, &["inauthentic", "illegitimate", "unauthorized", "rejected", "unverified", "inaccurate", "undetected"]))
         || (matches_any(b, &["authentic", "legitimate", "authorized", "approved", "verified", "accurate", "detected"])
             && matches_any(a, &["inauthentic", "illegitimate", "unauthorized", "rejected", "unverified", "inaccurate", "undetected"]))
+        || (matches_any(a, &["blocked", "block", "deny", "denied", "rejected"])
+            && matches_any(b, &["allowed", "allow", "approved", "accepted"]))
+        || (matches_any(b, &["blocked", "block", "deny", "denied", "rejected"])
+            && matches_any(a, &["allowed", "allow", "approved", "accepted"]))
+        || (matches_any(a, &["suspicious", "malicious", "risky"])
+            && matches_any(b, &["benign", "harmless", "safe"]))
+        || (matches_any(b, &["suspicious", "malicious", "risky"])
+            && matches_any(a, &["benign", "harmless", "safe"]))
 }
 
 fn has_contradiction(truth: &str, answer: &str) -> bool {
@@ -813,5 +831,15 @@ mod tests {
         }
         std::println!("public_probe_ordering={ordered}/4");
         assert_eq!(ordered, 4);
+    }
+
+    #[test]
+    fn edge_probe_rejects_mixed_verdict_and_preserves_distinct_scores() {
+        let truth = "The proposal is fraudulent and should be blocked.";
+        let good = fast_score_with_question("Assess this proposal.", truth, "The proposal is fraudulent and should be blocked.");
+        let mixed = fast_score_with_question("Assess this proposal.", truth, "The proposal is fraudulent but should be allowed.");
+        let safe = fast_score_with_question("Assess this proposal.", truth, "The proposal is benign and should be allowed.");
+        assert!(good > mixed && mixed > safe);
+        assert!(mixed < good * 0.75);
     }
 }
