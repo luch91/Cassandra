@@ -137,9 +137,16 @@ fn calibrated_score(ground_truth: &str, miner_answer: &str, raw: f32) -> f32 {
 #[inline]
 fn production_score(ground_truth: &str, miner_answer: &str, raw: f32) -> f32 {
     if ground_truth.trim().eq_ignore_ascii_case(miner_answer.trim()) { return 1.0; }
-    // fast_score already applies contradiction penalties. Apply only the
-    // monotonic contrast here so a contradictory answer is not penalized twice.
-    math::clamp01(raw * raw)
+    // fast_score already applies contradiction penalties. Apply a monotonic
+    // two-band contrast here so clearly strong and weak answers separate more
+    // clearly while preserving ordering inside each band.
+    let raw = math::clamp01(raw);
+    let contrasted = if raw < 0.5 {
+        0.70 * raw
+    } else {
+        0.30 + 0.70 * raw
+    };
+    math::clamp01(contrasted)
 }
 
 const MAX_WORDS: usize = 256;
@@ -818,6 +825,19 @@ mod tests {
         let bad = calibrated_score(truth, "The proposal is legitimate and safe.", 0.5604);
         assert!(good > bad);
         assert!(good - bad > 0.4);
+    }
+
+    #[test]
+    fn production_separation_transform_is_monotonic_and_bounded() {
+        let values = [0.0, 0.1, 0.25, 0.49, 0.5, 0.6, 0.8, 1.0];
+        let mut previous = 0.0;
+        for value in values {
+            let transformed = production_score("truth", "answer", value);
+            assert!((0.0..=1.0).contains(&transformed));
+            assert!(transformed > previous || value == 0.0);
+            previous = transformed;
+        }
+        assert_eq!(production_score("truth", "truth", 0.2), 1.0);
     }
 
     #[test]
