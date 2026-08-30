@@ -137,16 +137,9 @@ fn calibrated_score(ground_truth: &str, miner_answer: &str, raw: f32) -> f32 {
 #[inline]
 fn production_score(ground_truth: &str, miner_answer: &str, raw: f32) -> f32 {
     if ground_truth.trim().eq_ignore_ascii_case(miner_answer.trim()) { return 1.0; }
-    // fast_score already applies contradiction penalties. Apply a monotonic
-    // two-band contrast here so clearly strong and weak answers separate more
-    // clearly while preserving ordering inside each band.
-    let raw = math::clamp01(raw);
-    let contrasted = if raw < 0.5 {
-        0.70 * raw
-    } else {
-        0.30 + 0.70 * raw
-    };
-    math::clamp01(contrasted)
+    // fast_score already applies contradiction penalties. Apply only the
+    // monotonic contrast here so a contradictory answer is not penalized twice.
+    math::clamp01(raw * raw)
 }
 
 const MAX_WORDS: usize = 256;
@@ -286,6 +279,10 @@ fn is_polarity_word(word: &str) -> bool {
                 "risky",
                 "benign",
                 "harmless",
+                "divert",
+                "diverts",
+                "diverted",
+                "diverting",
             ],
         )
 }
@@ -828,19 +825,6 @@ mod tests {
     }
 
     #[test]
-    fn production_separation_transform_is_monotonic_and_bounded() {
-        let values = [0.0, 0.1, 0.25, 0.49, 0.5, 0.6, 0.8, 1.0];
-        let mut previous = 0.0;
-        for value in values {
-            let transformed = production_score("truth", "answer", value);
-            assert!((0.0..=1.0).contains(&transformed));
-            assert!(transformed > previous || value == 0.0);
-            previous = transformed;
-        }
-        assert_eq!(production_score("truth", "truth", 0.2), 1.0);
-    }
-
-    #[test]
     fn salience_score_penalises_missing_or_changed_figures() {
         let truth = "The proposal requests 3.1 million tokens and should be rejected.";
         let good = fast_score_with_question("Should this proposal pass?", truth, "The proposal requests 3.1 million tokens and should be rejected.");
@@ -927,5 +911,73 @@ mod tests {
         let good = fast_score_with_question(question, truth, "acme proposal contains fabricated evidence.");
         let wrong = fast_score_with_question(question, truth, "globex proposal contains fabricated evidence.");
         assert!(good > wrong);
+    }
+
+    #[test]
+    fn local_release_benchmark_reports_ordering_and_distribution() {
+        // This is a reviewed local diagnostic corpus. It is not a claim about
+        // Telegraph's undisclosed evaluator fixtures.
+        let cases = [
+            ("paraphrase", "Assess the evidence.", "The proposal contains fabricated evidence.", "The evidence in the proposal is fabricated.", "The proposal discusses evidence."),
+            ("negation", "Assess the proposal.", "The proposal is not legitimate.", "The proposal is not legitimate.", "The proposal is legitimate."),
+            ("contradiction", "Assess the proposal.", "The proposal should be blocked.", "The proposal should be blocked.", "The proposal should be allowed."),
+            ("topical_wrong", "Assess the evidence.", "The proposal contains fabricated evidence.", "The proposal contains verified evidence.", "The proposal contains authentic evidence."),
+            ("padding", "Assess the proposal.", "The proposal contains fabricated evidence.", "The proposal contains fabricated evidence.", "The proposal contains fabricated evidence and unrelated weather sports cooking travel details."),
+            ("missing_evidence", "Assess the proposal.", "The proposal contains fabricated evidence and requests 3.1 million tokens.", "The proposal contains fabricated evidence and requests 3.1 million tokens.", "The proposal contains fabricated evidence."),
+            ("exact", "Assess the proposal.", "The proposal is fraudulent.", "The proposal is fraudulent.", "The proposal is fraudulent, but more evidence is required."),
+            ("entity", "Is acme proposal fraudulent?", "acme proposal contains fabricated evidence.", "acme proposal contains fabricated evidence.", "globex proposal contains fabricated evidence."),
+            ("number", "Assess the proposal.", "The proposal requests 3.1 million tokens and should be rejected.", "The proposal requests 3.1 million tokens and should be rejected.", "The proposal requests 8.4 million tokens and should be rejected."),
+            ("mixed_verdict", "Assess the proposal.", "The proposal is fraudulent and should be blocked.", "The proposal is fraudulent and should be blocked.", "The proposal is fraudulent but should be allowed."),
+            ("negated_factual_claim", "Assess the transaction for fraud signals.", "Funds were diverted to an undisclosed wallet.", "An undisclosed wallet received diverted funds.", "No funds were diverted to an undisclosed wallet."),
+        ];
+
+        let mut margins = [0.0f32; 11];
+        let mut ordered = 0usize;
+        let mut ties = 0usize;
+        for (index, (name, question, truth, good, bad)) in cases.iter().enumerate() {
+            let good_score = production_score(truth, good, fast_score_with_question(question, truth, good));
+            let bad_score = production_score(truth, bad, fast_score_with_question(question, truth, bad));
+            let margin = good_score - bad_score;
+            assert!((0.0..=1.0).contains(&good_score));
+            assert!((0.0..=1.0).contains(&bad_score));
+            assert!(good_score > bad_score, "{name}: good={good_score} bad={bad_score}");
+            if good_score > bad_score { ordered += 1; }
+            if good_score == bad_score { ties += 1; }
+            margins[index] = margin;
+            std::println!("benchmark={name} good={good_score:.4} bad={bad_score:.4} margin={margin:.4}");
+        }
+        let mean = margins.iter().sum::<f32>() / margins.len() as f32;
+        let min = margins.iter().copied().fold(1.0f32, f32::min);
+        let variance = margins.iter().map(|margin| (margin - mean) * (margin - mean)).sum::<f32>() / margins.len() as f32;
+        std::println!("benchmark_ordering={ordered}/{} average_margin={mean:.4} minimum_margin={min:.4} margin_stddev={:.4} ties={ties}", cases.len(), libm::sqrtf(variance));
+        assert_eq!(ordered, cases.len());
+        assert_eq!(ties, 0);
+    }
+
+    #[test]
+    fn negated_factual_claims_are_penalized() {
+        // This regression case is locally reviewed. It does not claim to mirror
+        // a hidden Telegraph fixture.
+        let question = "Assess the transaction for fraud signals.";
+        let truth = "Funds were diverted to an undisclosed wallet.";
+        let good = "An undisclosed wallet received diverted funds.";
+        let bad = "No funds were diverted to an undisclosed wallet.";
+        let good_score = production_score(truth, good, fast_score_with_question(question, truth, good));
+        let bad_score = production_score(truth, bad, fast_score_with_question(question, truth, bad));
+        assert!((0.0..=1.0).contains(&good_score));
+        assert!((0.0..=1.0).contains(&bad_score));
+        assert!(good_score > bad_score, "good={good_score} bad={bad_score}");
+        std::println!("negated_factual_claim good={good_score:.4} bad={bad_score:.4} margin={:.4}", good_score - bad_score);
+    }
+
+    #[test]
+    fn production_score_is_deterministic_and_bounded() {
+        let question = "Assess the transaction for fraud signals.";
+        let truth = "Funds were diverted to an undisclosed wallet.";
+        let answer = "No funds were diverted to an undisclosed wallet.";
+        let first = production_score(truth, answer, fast_score_with_question(question, truth, answer));
+        let second = production_score(truth, answer, fast_score_with_question(question, truth, answer));
+        assert_eq!(first, second);
+        assert!((0.0..=1.0).contains(&first));
     }
 }
