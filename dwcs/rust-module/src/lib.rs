@@ -126,6 +126,10 @@ pub mod scoring {
     pub const STRUCTURE_FLOOR: f32 = 0.06;
     pub const STRUCTURE_MULTIPLIER: f32 = 0.5;
 
+    /// Explicit factual contradictions must not retain enough lexical or
+    /// semantic credit to compete with a fact-preserving answer.
+    pub const CONTRADICTION_CAP: f32 = 0.12;
+
     /// Quality boost gates: complete, grounded, phrase-coherent answers get
     /// lifted toward the top of the scale. The bigram gate is what keeps
     /// keyword-stuffed answers (high overlap, scrambled order) from boosting.
@@ -200,12 +204,37 @@ pub mod scoring {
         )
     }
 
+    fn is_requirement_term(w: &str) -> bool {
+        matches_any(w, &["require", "requires", "required", "need", "needs", "needed", "must"])
+    }
+
+    fn is_sync_term(w: &str) -> bool {
+        matches_any(w, &["sync", "synced", "synchronized", "synchronised"])
+    }
+
+    fn is_issue_term(w: &str) -> bool {
+        matches_any(w, &["issue", "issues", "problem", "problems", "finding", "findings"])
+    }
+
+    fn is_execution_term(w: &str) -> bool {
+        matches_any(w, &["execute", "executed", "execution", "approve", "approved", "approval"])
+    }
+
+    fn is_rejection_term(w: &str) -> bool {
+        matches_any(w, &["reject", "rejected", "rejection", "deny", "denied", "failed", "failure"])
+    }
+
+
     fn semantic_eq(a: &str, b: &str) -> bool {
         eq_norm(a, b)
             || (is_fraud_term(a) && is_fraud_term(b))
             || (is_safe_term(a) && is_safe_term(b))
             || (is_device_term(a) && is_device_term(b))
             || (is_authentication_term(a) && is_authentication_term(b))
+            || (is_requirement_term(a) && is_requirement_term(b))
+            || (is_sync_term(a) && is_sync_term(b))
+            || (is_issue_term(a) && is_issue_term(b))
+
     }
 
     fn is_opposite(a: &str, b: &str) -> bool {
@@ -217,12 +246,14 @@ pub mod scoring {
             && matches_any(b, &["reject", "rejected", "deny", "denied"]))
             || (matches_any(b, &["approve", "approved", "approval"])
                 && matches_any(a, &["reject", "rejected", "deny", "denied"]));
+        let execution = (is_execution_term(a) && is_rejection_term(b))
+            || (is_execution_term(b) && is_rejection_term(a));
         let custody = (matches_any(a, &["remain", "remains", "stays", "stay", "stayed", "hold", "held"])
             && matches_any(b, &["transfer", "transferred", "transfers", "move", "moved", "moves", "send", "sent"]))
             || (matches_any(b, &["remain", "remains", "stays", "stay", "stayed", "hold", "held"])
                 && matches_any(a, &["transfer", "transferred", "transfers", "move", "moved", "moves", "send", "sent"]));
         let risk = (is_fraud_term(a) && is_safe_term(b)) || (is_fraud_term(b) && is_safe_term(a));
-        disclosure || approval || risk || custody
+        disclosure || approval || execution || risk || custody
     }
 
     fn is_negation(w: &str) -> bool {
@@ -244,13 +275,30 @@ pub mod scoring {
         let mut bb = [0u8; 32];
         let mut an = 0usize;
         let mut bn = 0usize;
-        for byte in trim_punct(a).bytes() {
+        let aw = trim_punct(a);
+        let bw = trim_punct(b);
+        let words = [
+            ("zero", "0"), ("one", "1"), ("two", "2"), ("three", "3"),
+            ("four", "4"), ("five", "5"), ("six", "6"), ("seven", "7"),
+            ("eight", "8"), ("nine", "9"), ("ten", "10"), ("eleven", "11"),
+            ("twelve", "12"), ("thirteen", "13"), ("fourteen", "14"),
+            ("fifteen", "15"), ("sixteen", "16"), ("seventeen", "17"),
+            ("eighteen", "18"), ("nineteen", "19"), ("twenty", "20"),
+        ];
+        for (word, digits) in words {
+            if aw.eq_ignore_ascii_case(word) && bw == digits
+                || bw.eq_ignore_ascii_case(word) && aw == digits
+            {
+                return true;
+            }
+        }
+        for byte in aw.bytes() {
             if byte.is_ascii_digit() || byte == b'.' {
                 if an == aa.len() { return false; }
                 aa[an] = byte; an += 1;
             }
         }
-        for byte in trim_punct(b).bytes() {
+        for byte in bw.bytes() {
             if byte.is_ascii_digit() || byte == b'.' {
                 if bn == bb.len() { return false; }
                 bb[bn] = byte; bn += 1;
@@ -622,7 +670,7 @@ pub mod scoring {
             || has_numeric_conflict(answer, truth)
             || has_lexical_opposition(answer, truth)
         {
-            score *= 0.5;
+            score = score.min(CONTRADICTION_CAP);
         }
         score.clamp(0.0, 1.0)
     }
@@ -800,6 +848,44 @@ pub mod scoring {
         }
 
         #[test]
+        fn fact_tokens_normalize_words_and_domain_equivalents() {
+            assert!(numeric_eq("two", "2"));
+            assert!(numeric_eq("five", "5"));
+            assert!(semantic_eq("requires", "required"));
+            assert!(semantic_eq("synced", "sync"));
+            assert!(semantic_eq("issues", "issue"));
+            assert!(!semantic_eq("executed", "approved"));
+        }
+
+        #[test]
+        fn explicit_contradictions_have_a_low_score_ceiling() {
+            let cases = [
+                ("Delegation requires 32 ETH minimum.", "Delegation has no minimum."),
+                ("The node synced to block 19238472.", "The node is not synced."),
+                ("The funds remain in the treasury.", "The funds are transferred from the treasury."),
+                ("The audit found 2 critical and 5 medium severity issues.", "The audit found no issues."),
+            ];
+            for (truth, contradiction) in cases {
+                assert!(score_pair(truth, contradiction) <= 0.15, "contradiction too high: {}", score_pair(truth, contradiction));
+            }
+        }
+
+        #[test]
+        fn fact_preservation_gates_reject_negation_numeric_and_direction_flips() {
+            let cases = [
+                ("Governance quorum requires 5 percent of total supply.", "Five percent of supply must vote to reach quorum.", "Quorum is not required."),
+                ("The multisig executed transaction 0xabcd after 3 of 5 signatures.", "3/5 multisig signers approved tx 0xabcd which then executed.", "The multisig rejected the transaction."),
+                ("The audit found 2 critical and 5 medium severity issues.", "Auditors flagged two critical, five medium issues.", "The audit found no issues."),
+                ("Delegation requires 32 ETH minimum.", "You need at least 32 ETH to delegate.", "Delegation has no minimum."),
+                ("The node synced to block 19238472.", "Sync reached block 19238472.", "The node is not synced."),
+                ("Two factor authentication requires a password and a second device.", "Your phone plus your password lets you sign in.", "Authentication needs a password only."),
+            ];
+            for (truth, good, bad) in cases {
+                assert!(score_pair(truth, good) > score_pair(truth, bad), "fact-preserving answer lost: {truth}");
+            }
+        }
+
+        #[test]
         fn expanded_adversarial_ordering_suite() {
             let cases: &[(&str, &str, &str, f32)] = &[
                 ("The proposal transfers 5000 USDC to the audit contributor after a successful vote.", "After the vote passes, five thousand USDC goes to the auditor.", "The proposal moves USDC after a vote.", 0.0),
@@ -825,7 +911,6 @@ pub mod scoring {
             }
         }
 
-        #[test]
         #[test]
         fn broad_corpus_50_ordering() {
             let cases: &[(&str, &str, &str)] = &[
