@@ -201,6 +201,14 @@ fn is_safe_term(word: &str) -> bool {
         matches_any(word, &["safe", "legitimate", "legit", "valid", "authentic", "benign", "harmless", "trustworthy", "genuine"])
 }
 
+fn is_rejection_term(word: &str) -> bool {
+    matches_any(word, &["reject", "rejects", "rejected", "deny", "denies", "denied", "block", "blocks", "blocked"])
+}
+
+fn is_acceptance_term(word: &str) -> bool {
+    matches_any(word, &["accept", "accepts", "accepted", "allow", "allows", "allowed", "approve", "approves", "approved"])
+}
+
 fn same_group(a: &str, b: &str, terms: &[&str]) -> bool {
     matches_any(a, terms) && matches_any(b, terms)
 }
@@ -209,6 +217,8 @@ fn semantic_same(a: &str, b: &str) -> bool {
     a.eq_ignore_ascii_case(b)
         || (is_fraud_term(a) && is_fraud_term(b))
         || (is_safe_term(a) && is_safe_term(b))
+        || (is_rejection_term(a) && is_rejection_term(b))
+        || (is_acceptance_term(a) && is_acceptance_term(b))
         || same_group(a, b, &["complete", "completed", "completes", "completion"])
         || same_group(a, b, &["meet", "meets", "met", "meeting"])
         || same_group(a, b, &["verify", "verified", "verification"])
@@ -229,6 +239,8 @@ fn semantic_same(a: &str, b: &str) -> bool {
 fn is_polarity_word(word: &str) -> bool {
     is_fraud_term(word)
         || is_safe_term(word)
+        || is_rejection_term(word)
+        || is_acceptance_term(word)
         || matches_any(
             word,
             &[
@@ -269,11 +281,6 @@ fn is_polarity_word(word: &str) -> bool {
                 "inaccurate",
                 "detected",
                 "undetected",
-                "blocked",
-                "block",
-                "allowed",
-                "allow",
-                "accepted",
                 "suspicious",
                 "malicious",
                 "risky",
@@ -295,10 +302,8 @@ fn is_negated(words: &[&str], index: usize) -> bool {
 fn is_opposite(a: &str, b: &str) -> bool {
     (is_fraud_term(a) && is_safe_term(b))
         || (is_fraud_term(b) && is_safe_term(a))
-        || (matches_any(a, &["approve", "approved", "approval"])
-            && matches_any(b, &["reject", "rejected", "deny", "denied"]))
-        || (matches_any(b, &["approve", "approved", "approval"])
-            && matches_any(a, &["reject", "rejected", "deny", "denied"]))
+        || (is_acceptance_term(a) && is_rejection_term(b))
+        || (is_acceptance_term(b) && is_rejection_term(a))
         || (matches_any(a, &["verify", "verified", "verification"])
             && matches_any(b, &["unverified", "unverifiable"]))
         || (matches_any(b, &["verify", "verified", "verification"])
@@ -387,6 +392,8 @@ fn fast_same(a: &str, b: &str) -> bool {
     a.eq_ignore_ascii_case(b)
         || (is_fraud_term(a) && is_fraud_term(b))
         || (is_safe_term(a) && is_safe_term(b))
+        || (is_rejection_term(a) && is_rejection_term(b))
+        || (is_acceptance_term(a) && is_acceptance_term(b))
         || same_group(&["complete", "completed", "completes", "completion"])
         || same_group(&["meet", "meets", "met", "meeting"])
         || same_group(&["verify", "verified", "verification", "verifies"])
@@ -929,9 +936,10 @@ mod tests {
             ("number", "Assess the proposal.", "The proposal requests 3.1 million tokens and should be rejected.", "The proposal requests 3.1 million tokens and should be rejected.", "The proposal requests 8.4 million tokens and should be rejected."),
             ("mixed_verdict", "Assess the proposal.", "The proposal is fraudulent and should be blocked.", "The proposal is fraudulent and should be blocked.", "The proposal is fraudulent but should be allowed."),
             ("negated_factual_claim", "Assess the transaction for fraud signals.", "Funds were diverted to an undisclosed wallet.", "An undisclosed wallet received diverted funds.", "No funds were diverted to an undisclosed wallet."),
+            ("negated_decision_claim", "Assess whether the proposal should be accepted.", "The proposal was rejected because its evidence was fabricated.", "Fabricated evidence caused the proposal to be denied.", "The proposal was not rejected because its evidence was fabricated."),
         ];
 
-        let mut margins = [0.0f32; 11];
+        let mut margins = [0.0f32; 12];
         let mut ordered = 0usize;
         let mut ties = 0usize;
         for (index, (name, question, truth, good, bad)) in cases.iter().enumerate() {
@@ -979,5 +987,21 @@ mod tests {
         let second = production_score(truth, answer, fast_score_with_question(question, truth, answer));
         assert_eq!(first, second);
         assert!((0.0..=1.0).contains(&first));
+    }
+
+    #[test]
+    fn negated_decision_claims_are_penalized() {
+        // This regression case is locally reviewed and does not claim to mirror
+        // a hidden Telegraph fixture.
+        let question = "Assess whether the proposal should be accepted.";
+        let truth = "The proposal was rejected because its evidence was fabricated.";
+        let good = "Fabricated evidence caused the proposal to be denied.";
+        let bad = "The proposal was not rejected because its evidence was fabricated.";
+        let good_score = production_score(truth, good, fast_score_with_question(question, truth, good));
+        let bad_score = production_score(truth, bad, fast_score_with_question(question, truth, bad));
+        assert!((0.0..=1.0).contains(&good_score));
+        assert!((0.0..=1.0).contains(&bad_score));
+        assert!(good_score > bad_score, "good={good_score} bad={bad_score}");
+        std::println!("negated_decision_claim good={good_score:.4} bad={bad_score:.4} margin={:.4}", good_score - bad_score);
     }
 }
