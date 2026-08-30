@@ -515,6 +515,37 @@ fn entity_mismatch(question: &str, gt: &[&str], ans: &[&str]) -> bool {
     missing && replacement
 }
 
+fn transfer_endpoint_after<'a>(words: &[&'a str], marker: &str) -> Option<&'a str> {
+    for (index, word) in words.iter().enumerate() {
+        if !fast_clean(word).eq_ignore_ascii_case(marker) { continue; }
+        for candidate in &words[index + 1..] {
+            let cleaned = fast_clean(candidate);
+            if !matches_any(cleaned, &["a", "an", "the"]) && !cleaned.is_empty() {
+                return Some(cleaned);
+            }
+        }
+    }
+    None
+}
+
+fn transfer_direction_reversed(gt: &[&str], ans: &[&str]) -> bool {
+    let contains_transfer = |words: &[&str]| {
+        words.iter().any(|word| matches_any(fast_clean(word), &["transfer", "transferred", "transfers", "transferring"]))
+    };
+    if !contains_transfer(gt) || !contains_transfer(ans) { return false; }
+    let (gt_from, gt_to) = match (transfer_endpoint_after(gt, "from"), transfer_endpoint_after(gt, "to")) {
+        (Some(from), Some(to)) => (from, to),
+        _ => return false,
+    };
+    let (answer_from, answer_to) = match (transfer_endpoint_after(ans, "from"), transfer_endpoint_after(ans, "to")) {
+        (Some(from), Some(to)) => (from, to),
+        _ => return false,
+    };
+    !fast_same(gt_from, gt_to)
+        && fast_same(gt_from, answer_to)
+        && fast_same(gt_to, answer_from)
+}
+
 fn fast_score_with_question(_question: &str, truth: &str, answer: &str) -> f32 {
     if answer.trim().is_empty() { return 0.0; }
     if truth.trim().eq_ignore_ascii_case(answer.trim()) { return 1.0; }
@@ -593,6 +624,7 @@ fn fast_score_with_question(_question: &str, truth: &str, answer: &str) -> f32 {
         if wrong > 0 && hit_numbers < gt_numbers { score *= 0.05; }
     }
     if entity_mismatch(_question, &t[..tn], &a[..an]) { score *= 0.20; }
+    if transfer_direction_reversed(&t[..tn], &a[..an]) { score *= 0.15; }
     let full = matched == an && matched == tn;
     if full && bigram < 0.15 && tn >= 3 { score *= 0.85; }
     if has_contradiction(truth, answer) { score *= 0.30; }
@@ -937,9 +969,10 @@ mod tests {
             ("mixed_verdict", "Assess the proposal.", "The proposal is fraudulent and should be blocked.", "The proposal is fraudulent and should be blocked.", "The proposal is fraudulent but should be allowed."),
             ("negated_factual_claim", "Assess the transaction for fraud signals.", "Funds were diverted to an undisclosed wallet.", "An undisclosed wallet received diverted funds.", "No funds were diverted to an undisclosed wallet."),
             ("negated_decision_claim", "Assess whether the proposal should be accepted.", "The proposal was rejected because its evidence was fabricated.", "Fabricated evidence caused the proposal to be denied.", "The proposal was not rejected because its evidence was fabricated."),
+            ("transfer_direction", "Assess whether the transfer indicates fraud.", "Funds were transferred from the treasury to an undisclosed wallet.", "An undisclosed wallet received funds from the treasury.", "Funds were transferred from an undisclosed wallet to the treasury."),
         ];
 
-        let mut margins = [0.0f32; 12];
+        let mut margins = [0.0f32; 13];
         let mut ordered = 0usize;
         let mut ties = 0usize;
         for (index, (name, question, truth, good, bad)) in cases.iter().enumerate() {
@@ -1003,5 +1036,21 @@ mod tests {
         assert!((0.0..=1.0).contains(&bad_score));
         assert!(good_score > bad_score, "good={good_score} bad={bad_score}");
         std::println!("negated_decision_claim good={good_score:.4} bad={bad_score:.4} margin={:.4}", good_score - bad_score);
+    }
+
+    #[test]
+    fn transfer_direction_reversals_are_penalized() {
+        // This regression case is locally reviewed and does not claim to mirror
+        // a hidden Telegraph fixture.
+        let question = "Assess whether the transfer indicates fraud.";
+        let truth = "Funds were transferred from the treasury to an undisclosed wallet.";
+        let good = "An undisclosed wallet received funds from the treasury.";
+        let bad = "Funds were transferred from an undisclosed wallet to the treasury.";
+        let good_score = production_score(truth, good, fast_score_with_question(question, truth, good));
+        let bad_score = production_score(truth, bad, fast_score_with_question(question, truth, bad));
+        assert!((0.0..=1.0).contains(&good_score));
+        assert!((0.0..=1.0).contains(&bad_score));
+        assert!(good_score > bad_score, "good={good_score} bad={bad_score}");
+        std::println!("transfer_direction_reversal good={good_score:.4} bad={bad_score:.4} margin={:.4}", good_score - bad_score);
     }
 }
