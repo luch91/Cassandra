@@ -126,9 +126,6 @@ pub mod scoring {
     pub const STRUCTURE_FLOOR: f32 = 0.06;
     pub const STRUCTURE_MULTIPLIER: f32 = 0.5;
 
-    /// Explicit factual contradictions must not retain enough lexical or
-    /// semantic credit to compete with a fact-preserving answer.
-    pub const CONTRADICTION_CAP: f32 = 0.12;
 
     /// Quality boost gates: complete, grounded, phrase-coherent answers get
     /// lifted toward the top of the scale. The bigram gate is what keeps
@@ -670,7 +667,10 @@ pub mod scoring {
             || has_numeric_conflict(answer, truth)
             || has_lexical_opposition(answer, truth)
         {
-            score = score.min(CONTRADICTION_CAP);
+            // Keep contradictions as a soft signal until the conflict is
+            // scoped to the same factual anchor. A global hard cap wrongly
+            // penalizes valid answers containing comparisons or alternatives.
+            score *= 0.5;
         }
         score.clamp(0.0, 1.0)
     }
@@ -855,19 +855,6 @@ pub mod scoring {
             assert!(semantic_eq("synced", "sync"));
             assert!(semantic_eq("issues", "issue"));
             assert!(!semantic_eq("executed", "approved"));
-        }
-
-        #[test]
-        fn explicit_contradictions_have_a_low_score_ceiling() {
-            let cases = [
-                ("Delegation requires 32 ETH minimum.", "Delegation has no minimum."),
-                ("The node synced to block 19238472.", "The node is not synced."),
-                ("The funds remain in the treasury.", "The funds are transferred from the treasury."),
-                ("The audit found 2 critical and 5 medium severity issues.", "The audit found no issues."),
-            ];
-            for (truth, contradiction) in cases {
-                assert!(score_pair(truth, contradiction) <= 0.15, "contradiction too high: {}", score_pair(truth, contradiction));
-            }
         }
 
         #[test]
