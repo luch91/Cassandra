@@ -24,10 +24,14 @@ export type TelegraphIntentId =
 
 export interface MinerCatalogEntry {
   id: string;
+  slug?: string;
   name: string;
-  intents: TelegraphIntentId[];
+  supported_intents: TelegraphIntentId[];
+  activation_status: string;
+  // Legacy aliases retained for older node responses.
+  intents?: TelegraphIntentId[];
+  status?: string;
   min_price_usdc: number;
-  status: string;
 }
 
 export interface AskResult {

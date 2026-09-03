@@ -9,6 +9,7 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
+    "allowImportingTsExtensions": true,
     "outDir": "dist"
   },
   "include": ["dwcs/src", "app/src", "dwcs/tests", "app/tests"]

@@ -2,6 +2,7 @@ node_modules/
 dist/
 .env
 *.log
+.sentinel-evidence/
 
 # Rust build artifacts, never commit compiled WASM binaries either, they
 # should be built fresh and hashed at registration time.
