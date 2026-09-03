@@ -9,8 +9,8 @@ const SOURCE_RPC = process.env.ETH_SEPOLIA_RPC_URL ?? "https://ethereum-sepolia-
 const DEST_RPC = process.env.BASE_SEPOLIA_RPC_URL ?? "https://sepolia.base.org";
 const walletFile = process.env.TELEGRAPH_WALLET_ENV ?? `${process.env.HOME}/.config/telegraph/base-sepolia-sentinel.env`;
 const bridgeAbi = [{
-  type: "function", name: "depositETH", stateMutability: "payable",
-  inputs: [{ name: "_minGasLimit", type: "uint32" }, { name: "_extraData", type: "bytes" }], outputs: [],
+  type: "function", name: "bridgeETHTo", stateMutability: "payable",
+  inputs: [{ name: "_to", type: "address" }, { name: "_minGasLimit", type: "uint32" }, { name: "_extraData", type: "bytes" }], outputs: [],
 }] as const;
 
 function getArg(name: string): string | undefined {
@@ -30,7 +30,7 @@ async function main() {
   const amount = parseEther(amountText);
   if (amount <= 0n) throw new Error("Amount must be positive.");
   const account = privateKeyToAccount(loadPrivateKey());
-  const depositData = encodeFunctionData({ abi: bridgeAbi, functionName: "depositETH", args: [200000, "0x"] });
+  const depositData = encodeFunctionData({ abi: bridgeAbi, functionName: "bridgeETHTo", args: [account.address, 200000, "0x"] });
   const source = createPublicClient({ chain: sepolia, transport: http(SOURCE_RPC) });
   const destination = createPublicClient({ chain: { ...sepolia, id: BASE_SEPOLIA_CHAIN_ID }, transport: http(DEST_RPC) });
   const [sourceChain, sourceBalance, bridgeCode] = await Promise.all([
@@ -44,7 +44,8 @@ async function main() {
   if (sourceBalance < amount + gasCost) throw new Error(`Insufficient source balance: ${formatEther(sourceBalance)} ETH; need at least ${formatEther(amount + gasCost)} ETH including estimated gas.`);
   const wallet = createWalletClient({ account, chain: sepolia, transport: http(SOURCE_RPC) });
   console.log(JSON.stringify({ source_chain: sourceChain, destination_chain: BASE_SEPOLIA_CHAIN_ID, bridge: L1_STANDARD_BRIDGE, sender: account.address, recipient: account.address, amount_eth: amountText, estimated_gas: gas.toString(), estimated_max_fee_eth: formatEther(gasCost) }));
-  const hash = await wallet.writeContract({ address: L1_STANDARD_BRIDGE, abi: bridgeAbi, functionName: "depositETH", args: [200000, "0x"], value: amount });
+  if (process.argv.includes("--dry-run")) { console.log("dry_run: no transaction submitted"); return; }
+  const hash = await wallet.writeContract({ address: L1_STANDARD_BRIDGE, abi: bridgeAbi, functionName: "bridgeETHTo", args: [account.address, 200000, "0x"], value: amount });
   console.log(JSON.stringify({ submitted_tx: hash, explorer: `https://sepolia.etherscan.io/tx/${hash}` }));
   const receipt = await source.waitForTransactionReceipt({ hash });
   if (receipt.status !== "success") throw new Error(`L1 bridge transaction reverted: ${hash}`);

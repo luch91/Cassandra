@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "preflight:sentinel": "node --experimental-strip-types --experimental-specifier-resolution=node app/src/preflight.ts",
     "smoke:sentinel": "node --experimental-strip-types --experimental-specifier-resolution=node app/src/smoke.ts",
+    "bridge:sepolia-to-base": "node --experimental-strip-types --experimental-specifier-resolution=node scripts/bridge_sepolia_to_base.ts",
     "check:open-questions": "bash scripts/check_open_questions.sh"
   },
   "devDependencies": {
