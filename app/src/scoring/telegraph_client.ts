@@ -26,6 +26,7 @@ export interface MinerCatalogEntry {
   id: string;
   slug?: string;
   name: string;
+  endpoints?: { path: string; method: string; description?: string }[];
   supported_intents: TelegraphIntentId[];
   activation_status: string;
   // Legacy aliases retained for older node responses.

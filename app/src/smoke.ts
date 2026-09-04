@@ -50,10 +50,14 @@ export async function runPaidSmoke(args: string[]): Promise<void> {
   }
   const selected = compatible.find((m) => m.id === minerId);
   if (!selected) throw new Error(`Preflight blocked: ${minerId} is not a declared compatible active miner.`);
+  const endpoint = selected.endpoints?.find((e) =>
+    e.description?.includes("FRAUD_DETECTION") || e.path.toLowerCase().includes("fraud")
+  );
+  if (!endpoint) throw new Error(`Preflight blocked: ${minerId} has no declared FRAUD_DETECTION endpoint.`);
 
   const ledger = await readLedger();
   const requestKey = createHash("sha256").update(`${minerId}\n${query}`).digest("hex");
-  if (ledger[requestKey]) throw new Error(`Refusing repeat paid smoke request: ${requestKey}.`);
+  if ((ledger[requestKey] as { paid?: boolean } | undefined)?.paid) throw new Error(`Refusing repeat paid smoke request: ${requestKey}.`);
 
   const { wrapFetchWithPaymentFromConfig } = await import("@x402/fetch");
   const { ExactEvmScheme } = await import("@x402/evm");
@@ -67,7 +71,8 @@ export async function runPaidSmoke(args: string[]): Promise<void> {
 
   const startedAt = new Date().toISOString();
   const response = await paidFetch(`${process.env.TELEGRAPH_NODE_URL ?? "https://devnode.telegraphprotocol.com"}/engine/v1/ask/${minerId}`, {
-    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query }),
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ method: endpoint.method, endpoint: endpoint.path, payload: { query } }),
   });
   const body = await response.text();
   const evidence = {
@@ -76,6 +81,7 @@ export async function runPaidSmoke(args: string[]): Promise<void> {
     request_key: requestKey,
     miner_id: minerId,
     miner_name: selected.name,
+    miner_endpoint: endpoint,
     intent: "FRAUD_DETECTION",
     status: response.status,
     headers: redactHeaders(response.headers),
@@ -84,7 +90,7 @@ export async function runPaidSmoke(args: string[]): Promise<void> {
   };
   await mkdir(EVIDENCE_DIR, { recursive: true });
   await writeFile(`${EVIDENCE_DIR}/${requestKey}.json`, JSON.stringify(evidence, null, 2));
-  ledger[requestKey] = { miner_id: minerId, created_at: startedAt, evidence: `${requestKey}.json` };
+  ledger[requestKey] = { miner_id: minerId, created_at: startedAt, evidence: `${requestKey}.json`, paid: response.ok };
   await writeFile(LEDGER_PATH, JSON.stringify(ledger, null, 2));
   if (!response.ok) throw new Error(`Paid smoke request failed: HTTP ${response.status}; evidence saved.`);
   console.log(JSON.stringify({ status: response.status, miner_id: minerId, evidence: `${EVIDENCE_DIR}/${requestKey}.json`, request_key: requestKey }));
