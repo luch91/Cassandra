@@ -7,6 +7,7 @@
     "test": "jest",
     "test:dwcs": "jest dwcs/tests",
     "test:app": "jest app/tests",
+    "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
     "preflight:sentinel": "node --experimental-strip-types --experimental-specifier-resolution=node app/src/preflight.ts",
     "smoke:sentinel": "node --experimental-strip-types --experimental-specifier-resolution=node app/src/smoke.ts",
