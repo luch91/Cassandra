@@ -45,7 +45,7 @@ describe("runSentinelSmoke", () => {
     }]);
     const evidencePath = join(directory, "evidence.json");
     const evidence = await runSentinelSmoke("fixture query", { SENTINEL_ALLOW_PAID_REQUESTS: "true" }, {
-      discover: async () => [{ id: "302", slug: "chainsight-oracle", name: "ChainSight", endpoint: { method: "GET", path: "/fraud" } }],
+      discover: async () => [route("91001", "sarzops-transaction-risk", "/fraud")],
       ask, verify,
     }, evidencePath);
     expect(ask).toHaveBeenCalledTimes(1);
