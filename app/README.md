@@ -38,11 +38,15 @@ Sentinel writes an attempt ledger before inference and a request ledger after ea
 
 Use `npm run preflight:sentinel` after a build to make a free registry-only check that enough compatible miners exist. Use `npm run metrics:sentinel` to report completed attributable requests, distinct proposals, total cost, and progress toward 100 requests. Neither command makes a paid request.
 
+The usage metric is intentionally ledger-based. It counts only completed records containing both a proposal ID and Miner ID, and it never imports or invents activity. A missing ledger is reported as zero. The current checkout therefore reports zero attributable volume. The separately documented one-request contingency smoke test proves receipt handling but is not volume generation and is not added to the ledger retroactively.
+
 For a bounded receipt diagnostic, set `SENTINEL_SMOKE_QUERY` and
 `SENTINEL_ALLOW_PAID_REQUESTS=true`, then run `npm run smoke:sentinel`.
 It makes exactly one paid request, performs no retries or loop, and writes only
 redacted receipt metadata under `.sentinel-evidence/`.
 
-## Live readiness limitation
+## Evidence and submission boundaries
 
-The current public Engine OpenAPI documents direct and auto-routed x402 requests, but does not document a `signal_hash` on inference responses or a signal lookup endpoint. Sentinel will fail closed if a paid response lacks `signal_hash`, so it will never label such a response as a verified Layer 1 receipt. Before any live run, perform one explicitly authorized paid smoke test, retain the raw response and receipt evidence, and reconcile the receipt path with Telegraph if the field or lookup route differs.
+Sentinel fails closed if a paid response lacks `signal_hash`, if the readback hash differs, if the result is not successful, or if Telegraph does not report cryptographic verification. The completed one-request contingency evidence in issue #16 confirms the live readback route and records the payment transaction, signal hash, `keccak256` algorithm, `payload` commitment, and verified result. It used a closed Balancer proposal because the active-proposal preflight returned zero results.
+
+Do not treat the contingency smoke test as proof of active-vote production behavior or as progress toward the 100-request guardrail. Do not run additional paid requests without explicit authorization. There is no UI; use the CLI commands and redacted JSONL evidence described above.

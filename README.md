@@ -37,9 +37,26 @@ dwcs/canaries/        Local held-out adversarial cases
 scripts/              Build and validation helpers
 ```
 
-## Verified locally
+## Verification and submission status
 
-DWCS is built for `wasm32-unknown-unknown` and validated as a zero-import WASM module. The repository includes Rust and TypeScript tests for its deterministic scoring logic, Snapshot ingestion, and Sentinel's agreement-based triage behavior. Live Miner requests, x402 payments, and DWCS registration require the designated funded wallet and are not represented as completed here.
+DWCS is built for `wasm32-unknown-unknown` and validated as a zero-import WASM module. The repository includes Rust and TypeScript tests for its deterministic scoring logic, Snapshot ingestion, and Sentinel's agreement-based triage behavior. A single owner-authorized Sentinel contingency request is documented in GitHub issue #16 with a verified x402 receipt. It used a closed Balancer proposal because no active proposal was available, so it does not prove active-vote production behavior.
+
+DWCS registration is a separate owner-authorized on-chain action and is not claimed as complete by this repository. Track 2 submission status is managed by the project owner.
+
+## Sentinel usage metrics
+
+Usage is measured only from completed, attributable records in the append-only request ledger. The metrics command never sends requests and never fabricates activity:
+
+```bash
+npm run build
+npm run metrics:sentinel
+```
+
+The output reports completed requests, distinct proposal IDs, total cost, a target of 100 real requests, and whether that target has been reached. The current checkout's local ledger reports `0` completed requests, `0` unique proposals, `$0` cost, and `targetReached: false`. The separately documented one-request contingency smoke test is receipt evidence, not volume generation, and is not inserted into the ledger retroactively.
+
+## No-UI operation
+
+Cassandra has no web UI. The supported operator surface is the CLI and the JSONL evidence files it produces. Use `npm run preflight:sentinel` for a free registry check, `npm run metrics:sentinel` for usage reporting, and the continuously running `npm run start:sentinel` only when a funded wallet and explicit paid-request authorization are available. Keep `data/` and `.sentinel-evidence/` local and redact secrets before sharing evidence.
 
 ## Safety boundaries
 
