@@ -18,24 +18,50 @@
 
 import type { TriageDecision } from "../scoring/multi_miner_agreement";
 import type { GovernanceProposal } from "../ingest/governance_source";
-import type { AskResult } from "../scoring/telegraph_client";
+import {
+  verifySignal,
+  type AskResult,
+  type TelegraphSignalVerification,
+} from "../scoring/telegraph_client";
 
 export interface Layer1Receipt {
   signalHash: string;
   verifiedAt: string;
-  minerIds: string[];
+  minerId: string;
+  verification: unknown;
 }
 
 /**
- * Layer 1: just collects the receipts Sentinel already has from its paid
- * requests. This is real and buildable now, it doesn't need anything new.
+ * Layer 1: independently verifies every receipt Sentinel received from its
+ * paid requests. A timestamp is only attached after Telegraph's verification
+ * endpoint returns successfully.
  */
-export function collectLayer1Receipts(askResults: AskResult[]): Layer1Receipt {
-  return {
-    signalHash: askResults[0]?.signal_hash ?? "",
-    verifiedAt: new Date().toISOString(),
-    minerIds: askResults.map((r) => r.miner_id),
-  };
+export async function verifyLayer1Receipts(
+  askResults: AskResult[],
+  verifier: (signalHash: string) => Promise<TelegraphSignalVerification> = verifySignal
+): Promise<Layer1Receipt[]> {
+  if (askResults.length === 0) {
+    throw new Error("Cannot verify Layer 1 receipts without ask results.");
+  }
+
+  for (const result of askResults) {
+    if (!result.signal_hash?.trim()) {
+      throw new Error(`Cannot verify Layer 1 receipt for miner ${result.miner_id}: signal_hash is empty.`);
+    }
+  }
+
+  return Promise.all(
+    askResults.map(async (result) => {
+      const signalHash = result.signal_hash!;
+      const verification = await verifier(signalHash);
+      return {
+        signalHash,
+        verifiedAt: new Date().toISOString(),
+        minerId: result.miner_id,
+        verification,
+      };
+    })
+  );
 }
 
 export interface Layer2ActionResult {

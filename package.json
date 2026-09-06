@@ -8,6 +8,11 @@
     "test:dwcs": "jest dwcs/tests",
     "test:app": "jest app/tests",
     "typecheck": "tsc --noEmit",
+    "build": "tsc",
+    "start:sentinel": "node dist/app/src/cli.js",
+    "smoke:sentinel": "node dist/app/src/smoke_cli.js",
+    "preflight:sentinel": "node dist/app/src/preflight_cli.js",
+    "metrics:sentinel": "node dist/app/src/metrics_cli.js",
     "check:open-questions": "bash scripts/check_open_questions.sh"
   },
   "devDependencies": {
@@ -23,6 +28,7 @@
   },
   "jest": {
     "preset": "ts-jest",
-    "testEnvironment": "node"
+    "testEnvironment": "node",
+    "testPathIgnorePatterns": ["/node_modules/", "/dist/"]
   }
 }

@@ -17,6 +17,7 @@ describe("Snapshot governance source", () => {
               title: "Fund security review",
               body: "Review details: https://example.org/evidence and https://example.org/evidence",
               created: 1_787_304_511,
+              end: 1_787_390_911,
               space: { id: "balancer.eth", name: "Balancer" },
             },
           ],
@@ -32,6 +33,7 @@ describe("Snapshot governance source", () => {
         bodyText: "Review details: https://example.org/evidence and https://example.org/evidence",
         linkedEvidenceUrls: ["https://example.org/evidence"],
         submittedAt: "2026-08-21T09:28:31.000Z",
+        votingEndsAt: "2026-08-22T09:28:31.000Z",
       },
     ]);
 

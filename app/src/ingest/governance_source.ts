@@ -12,6 +12,7 @@ export interface GovernanceProposal {
   bodyText: string;
   linkedEvidenceUrls: string[];
   submittedAt: string; // ISO 8601
+  votingEndsAt: string; // ISO 8601
 }
 
 export const SNAPSHOT_HUB_URL = "https://hub.snapshot.org/graphql";
@@ -22,6 +23,7 @@ interface SnapshotProposal {
   title: string;
   body: string;
   created: number;
+  end: number;
   space: {
     id: string;
     name: string;
@@ -49,6 +51,7 @@ const PENDING_PROPOSALS_QUERY = `
       title
       body
       created
+      end
       space {
         id
         name
@@ -91,5 +94,6 @@ export async function fetchPendingProposals(): Promise<GovernanceProposal[]> {
     bodyText: proposal.body,
     linkedEvidenceUrls: extractEvidenceUrls(proposal.body),
     submittedAt: new Date(proposal.created * 1_000).toISOString(),
+    votingEndsAt: new Date(proposal.end * 1_000).toISOString(),
   }));
 }

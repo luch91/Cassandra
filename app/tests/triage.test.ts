@@ -50,13 +50,31 @@ describe("decideTriageAction", () => {
     expect(decision.action).toBe("flag_for_review");
   });
 
-  it("escalates on-chain when agreement clears the threshold with enough samples", () => {
+  it("escalates for human review when agreement and explicit risk both clear the threshold", () => {
+    const decision = decideTriageAction({
+      agreementScore: DEFAULT_ESCALATION_THRESHOLD + 0.05,
+      sampleSize: MIN_MINER_SAMPLE_SIZE,
+      representativeAnswer: "x",
+    }, DEFAULT_ESCALATION_THRESHOLD, true);
+    expect(decision.action).toBe("escalate_for_review");
+  });
+
+  it("does not escalate on agreement alone", () => {
     const decision = decideTriageAction({
       agreementScore: DEFAULT_ESCALATION_THRESHOLD + 0.05,
       sampleSize: MIN_MINER_SAMPLE_SIZE,
       representativeAnswer: "x",
     });
-    expect(decision.action).toBe("escalate_onchain");
+    expect(decision.action).toBe("no_action");
+  });
+
+  it("flags high-agreement missing-evidence signals for review", () => {
+    const decision = decideTriageAction({
+      agreementScore: DEFAULT_ESCALATION_THRESHOLD + 0.05,
+      sampleSize: MIN_MINER_SAMPLE_SIZE,
+      representativeAnswer: "x",
+    }, DEFAULT_ESCALATION_THRESHOLD, false, true);
+    expect(decision.action).toBe("flag_for_review");
   });
 
   it("takes no action when agreement is moderate but below threshold", () => {

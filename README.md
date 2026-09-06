@@ -21,11 +21,11 @@ Its runtime interface returns one `f32` score from `0` to `1`. It has no network
 
 ### Sentinel
 
-Sentinel is the application layer. It reads active proposals from the public `balancer.eth` Snapshot space, submits them to real Telegraph Miners through x402, verifies the resulting `signal_hash` receipts, and compares answers across Miners.
+Sentinel is the application layer. It reads active proposals from the public `balancer.eth` Snapshot space, discovers compatible live Telegraph Miners through the public registry, submits real x402 requests, and compares answers across Miners. It records every completed paid request in an append-only local ledger and only records Layer 1 evidence after independent receipt verification succeeds.
 
 High agreement increases confidence. Low agreement indicates that the proposal should receive human review.
 
-The x402 settlement is Sentinel's Layer 1 on-chain evidence. Layer 2, an external governance-contract flag write, is deliberately excluded because Snapshot spaces do not expose a universal, verified flagging interface.
+The x402 settlement is Sentinel's Layer 1 on-chain evidence. Layer 2, an external governance-contract flag write, is deliberately excluded because Snapshot spaces do not expose a universal, verified flagging interface. Automated polling never reprocesses a proposal after a recorded paid request, preventing duplicate traffic.
 
 ## Repository
 

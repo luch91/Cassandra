@@ -9,8 +9,8 @@
  * invoke a registered scoring module directly.
  *
  * Sentinel's actual confidence signal instead comes from querying multiple
- * independent, live FRAUD_DETECTION miners for the *same* proposal (via
- * GET /api/miners?intent=FRAUD_DETECTION to discover them, then paying each
+ * independent, live FRAUD_DETECTION miners for the same proposal (via the
+ * public integration registry, then paying each declared compatible endpoint
  * via x402, see telegraph_client.ts) and checking whether their answers
  * agree. This is the same "disagreement as measurement instrument"
  * philosophy DWCS uses, just applied at the application layer over live
@@ -86,7 +86,7 @@ export function computeAgreement(answers: MinerAnswer[]): AgreementResult {
 }
 
 export interface TriageDecision {
-  action: "flag_for_review" | "escalate_onchain" | "no_action";
+  action: "flag_for_review" | "escalate_for_review" | "no_action";
   reason: string;
 }
 
@@ -103,7 +103,9 @@ export const DEFAULT_ESCALATION_THRESHOLD = 0.85;
 
 export function decideTriageAction(
   agreement: AgreementResult,
-  escalationThreshold: number = DEFAULT_ESCALATION_THRESHOLD
+  escalationThreshold: number = DEFAULT_ESCALATION_THRESHOLD,
+  escalationSupported = false,
+  reviewSupported = false
 ): TriageDecision {
   if (agreement.sampleSize < MIN_MINER_SAMPLE_SIZE) {
     return {
@@ -120,9 +122,17 @@ export function decideTriageAction(
   }
 
   if (agreement.agreementScore >= escalationThreshold) {
+    if (!escalationSupported) {
+      return {
+        action: reviewSupported ? "flag_for_review" : "no_action",
+        reason: reviewSupported
+          ? `Miner agreement (${agreement.agreementScore.toFixed(2)}) is high and indicates missing evidence, so the proposal needs human review.`
+          : `Miner agreement (${agreement.agreementScore.toFixed(2)}) is high, but no structured fraud-risk signal supports escalation.`,
+      };
+    }
     return {
-      action: "escalate_onchain",
-      reason: `High miner agreement (${agreement.agreementScore.toFixed(2)}) cleared the escalation threshold (${escalationThreshold}).`,
+      action: "escalate_for_review",
+      reason: `High miner agreement (${agreement.agreementScore.toFixed(2)}) and an explicit fraud-risk signal cleared the escalation threshold (${escalationThreshold}).`,
     };
   }
 
@@ -131,4 +141,3 @@ export function decideTriageAction(
     reason: `Miner agreement (${agreement.agreementScore.toFixed(2)}) did not clear the escalation threshold (${escalationThreshold}).`,
   };
 }
-

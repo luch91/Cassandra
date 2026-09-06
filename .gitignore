@@ -3,6 +3,15 @@ dist/
 .env
 *.log
 
+# Locally generated receipt and request evidence may contain real on-chain
+# identifiers and must be exported deliberately, never committed.
+data/
+.sentinel-evidence/
+
+# Locally generated receipt and request evidence. These may contain real
+# on-chain identifiers and must be exported deliberately, never committed.
+data/
+
 # Rust build artifacts, never commit compiled WASM binaries either, they
 # should be built fresh and hashed at registration time.
 dwcs/rust-module/target/
