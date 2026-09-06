@@ -58,6 +58,17 @@ The output reports completed requests, distinct proposal IDs, total cost, a targ
 
 Cassandra has no web UI. The supported operator surface is the CLI and the JSONL evidence files it produces. Use `npm run preflight:sentinel` for a free registry check, `npm run metrics:sentinel` for usage reporting, and the continuously running `npm run start:sentinel` only when a funded wallet and explicit paid-request authorization are available. Keep `data/` and `.sentinel-evidence/` local and redact secrets before sharing evidence.
 
+## Submission checklist
+
+- [x] Sentinel code, receipt verification, proposal ingestion, retry guard, and ledger metrics are implemented and locally tested.
+- [x] One authorized contingency receipt is documented and independently verified in GitHub issue #16.
+- [x] The local usage metric is reproducible and non-gamed. Current result: `0/100` real requests.
+- [ ] DWCS registration and live status are confirmed on Telegraph.
+- [ ] The 100-real-request guardrail is reached and evidenced. Synthetic traffic is prohibited.
+- [ ] Final demo and application write-up are supplied by the project owner.
+
+The unchecked items are external or authorization-gated deliverables. They are intentionally not represented as complete by this repository.
+
 ## Safety boundaries
 
 - Sentinel production paths use real Telegraph endpoints only.
