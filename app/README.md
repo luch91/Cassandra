@@ -31,10 +31,15 @@ Configuration defaults are deliberately conservative:
 - `SENTINEL_ESCALATION_THRESHOLD=0.85`, accepted range 0.5 to 1.
 - `SENTINEL_MIN_REMAINING_VOTE_MINUTES=60`, Sentinel skips proposals inside this pre-vote review buffer.
 - `SENTINEL_POLL_INTERVAL_MS=900000`, minimum 60000 ms.
+- `SENTINEL_MAX_REQUESTS=100`, hard maximum completed paid requests.
+- `SENTINEL_MAX_BUDGET_USD=1`, hard cumulative request budget in USDC units.
+- `SENTINEL_MAX_REQUEST_COST_USD=0.01`, maximum expected cost reserved before each paid request.
 - `SENTINEL_REQUEST_LEDGER=data/sentinel-request-ledger.jsonl`, append-only paid-request attribution ledger.
 - `SENTINEL_RECEIPT_LOG=data/sentinel-layer1-receipts.jsonl`, append-only verified receipt evidence.
 
 Sentinel writes an attempt ledger before inference and a request ledger after each completed paid request. This prevents polling from generating duplicate or synthetic traffic, including after a process interruption. Failed attempts require an explicit human decision before retrying. Real request records are gitignored and must be exported explicitly for submission evidence.
+
+Before every paid request, Sentinel re-reads the usage ledger and stops permanently when either the completed-request limit or cumulative budget would be reached. The guard is applied before each Miner in the three-Miner sample, not only once per polling cycle. The runner does not schedule another poll after the guard stops it. Because a route's final price is returned only after payment, `SENTINEL_MAX_REQUEST_COST_USD` must be set no lower than the live declared route price; otherwise Sentinel stops before spending. No payment occurs while the Snapshot source has no eligible active proposal.
 
 Use `npm run preflight:sentinel` after a build to make a free registry-only check that enough compatible miners exist. Use `npm run metrics:sentinel` to report completed attributable requests, distinct proposals, total cost, and progress toward 100 requests. Neither command makes a paid request.
 

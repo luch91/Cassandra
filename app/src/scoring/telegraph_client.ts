@@ -175,7 +175,8 @@ export async function askMultipleMiners(
   intent: TelegraphIntentId,
   query: string,
   sampleSize: number,
-  onResult?: (result: AskResult) => Promise<unknown>
+  onResult?: (result: AskResult) => Promise<unknown>,
+  beforeRequest?: (miner: CompatibleMiner) => Promise<unknown>,
 ): Promise<AskResult[]> {
   const miners = await discoverCompatibleMiners(intent);
   if (miners.length < sampleSize) {
@@ -183,6 +184,7 @@ export async function askMultipleMiners(
   }
   const results: AskResult[] = [];
   for (const miner of miners.slice(0, sampleSize)) {
+    await beforeRequest?.(miner);
     const result = await askMiner(miner, query);
     await onResult?.(result);
     results.push(result);

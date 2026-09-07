@@ -21,6 +21,19 @@ export interface UsageMetrics {
   targetReached: boolean;
 }
 
+export interface UsageBudget {
+  maxCompletedRequests: number;
+  maxBudgetUsd: number;
+  maxRequestCostUsd: number;
+}
+
+export class UsageBudgetReachedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "UsageBudgetReachedError";
+  }
+}
+
 const DEFAULT_LEDGER_PATH = "data/sentinel-request-ledger.jsonl";
 
 export async function readRequestLedger(filePath = process.env.SENTINEL_REQUEST_LEDGER ?? DEFAULT_LEDGER_PATH): Promise<RequestLedgerRecord[]> {
@@ -54,6 +67,21 @@ export async function getUsageMetrics(
     targetRequests,
     targetReached: completedRequests >= targetRequests,
   };
+}
+
+/** Fails closed before a paid call when the configured hard stop is reached. */
+export function assertCanStartPaidRequest(metrics: UsageMetrics, budget: UsageBudget): void {
+  if (metrics.completedRequests >= budget.maxCompletedRequests) {
+    throw new UsageBudgetReachedError(
+      `Sentinel request limit reached: ${metrics.completedRequests}/${budget.maxCompletedRequests} completed requests.`,
+    );
+  }
+  if (metrics.totalCostUsd + budget.maxRequestCostUsd > budget.maxBudgetUsd + 1e-9) {
+    throw new UsageBudgetReachedError(
+      `Sentinel budget would be exceeded: $${metrics.totalCostUsd.toFixed(6)} spent plus ` +
+        `$${budget.maxRequestCostUsd.toFixed(6)} maximum request cost exceeds $${budget.maxBudgetUsd.toFixed(6)}.`,
+    );
+  }
 }
 
 /** Appends each completed paid request once. This is the non-gamed usage ledger. */

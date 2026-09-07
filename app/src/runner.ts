@@ -1,9 +1,11 @@
 import { loadSentinelConfig } from "./config";
 import { runSentinelCycle } from "./index";
+import { UsageBudgetReachedError } from "./usage/request_ledger";
 
 export function startSentinel(): () => void {
   const config = loadSentinelConfig();
   let running = false;
+  let stopped = false;
   let timer: NodeJS.Timeout | undefined;
 
   const run = async () => {
@@ -12,10 +14,15 @@ export function startSentinel(): () => void {
     try {
       await runSentinelCycle(config);
     } catch (error) {
-      console.error("Sentinel cycle failed. No automatic retry is performed.", error);
+      if (error instanceof UsageBudgetReachedError) {
+        stopped = true;
+        console.log(`Sentinel stopped: ${error.message}`);
+      } else {
+        console.error("Sentinel cycle failed. No automatic retry is performed.", error);
+      }
     } finally {
       running = false;
-      timer = setTimeout(run, config.pollIntervalMs);
+      if (!stopped) timer = setTimeout(run, config.pollIntervalMs);
     }
   };
 

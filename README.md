@@ -54,6 +54,8 @@ npm run metrics:sentinel
 
 The output reports completed requests, distinct proposal IDs, total cost, a target of 100 real requests, and whether that target has been reached. The current checkout's local ledger reports `0` completed requests, `0` unique proposals, `$0` cost, and `targetReached: false`. The separately documented one-request contingency smoke test is receipt evidence, not volume generation, and is not inserted into the ledger retroactively.
 
+The continuous runner enforces `SENTINEL_MAX_REQUESTS=100` and `SENTINEL_MAX_BUDGET_USD=1` before every paid Miner call. It also reserves `SENTINEL_MAX_REQUEST_COST_USD=0.01` per call by default, and stops permanently when either ceiling would be crossed. If Snapshot has no eligible active proposal, the cycle makes no payment.
+
 ## No-UI operation
 
 Cassandra has no web UI. The supported operator surface is the CLI and the JSONL evidence files it produces. Use `npm run preflight:sentinel` for a free registry check, `npm run metrics:sentinel` for usage reporting, and the continuously running `npm run start:sentinel` only when a funded wallet and explicit paid-request authorization are available. Keep `data/` and `.sentinel-evidence/` local and redact secrets before sharing evidence.

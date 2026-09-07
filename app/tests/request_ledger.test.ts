@@ -1,7 +1,13 @@
 import { mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { appendRequestLedger, getUsageMetrics, readProcessedProposalIds } from "../src/usage/request_ledger";
+import {
+  appendRequestLedger,
+  assertCanStartPaidRequest,
+  getUsageMetrics,
+  readProcessedProposalIds,
+  UsageBudgetReachedError,
+} from "../src/usage/request_ledger";
 
 const result = {
   miner_id: "miner-1",
@@ -38,5 +44,27 @@ describe("Sentinel request ledger", () => {
 
   it("rejects an invalid usage target", async () => {
     await expect(getUsageMetrics(undefined, 0)).rejects.toThrow("positive integer");
+  });
+
+  it("fails closed at the request and budget limits", () => {
+    const budget = { maxCompletedRequests: 100, maxBudgetUsd: 1, maxRequestCostUsd: 0.01 };
+    expect(() =>
+      assertCanStartPaidRequest(
+        { completedRequests: 100, uniqueProposals: 100, totalCostUsd: 1, targetRequests: 100, targetReached: true },
+        budget,
+      ),
+    ).toThrow(UsageBudgetReachedError);
+    expect(() =>
+      assertCanStartPaidRequest(
+        { completedRequests: 99, uniqueProposals: 99, totalCostUsd: 0.995, targetRequests: 100, targetReached: false },
+        budget,
+      ),
+    ).toThrow("budget would be exceeded");
+    expect(() =>
+      assertCanStartPaidRequest(
+        { completedRequests: 99, uniqueProposals: 99, totalCostUsd: 0.98, targetRequests: 100, targetReached: false },
+        budget,
+      ),
+    ).not.toThrow();
   });
 });

@@ -6,6 +6,9 @@ describe("loadSentinelConfig", () => {
       escalationThreshold: 0.85,
       minimumRemainingVoteMinutes: 60,
       pollIntervalMs: 900_000,
+      maxCompletedRequests: 100,
+      maxBudgetUsd: 1,
+      maxRequestCostUsd: 0.01,
     });
   });
 
@@ -14,7 +17,14 @@ describe("loadSentinelConfig", () => {
       SENTINEL_ESCALATION_THRESHOLD: "0.9",
       SENTINEL_MIN_REMAINING_VOTE_MINUTES: "120",
       SENTINEL_POLL_INTERVAL_MS: "60000",
-    })).toEqual({ escalationThreshold: 0.9, minimumRemainingVoteMinutes: 120, pollIntervalMs: 60_000 });
+    })).toEqual({
+      escalationThreshold: 0.9,
+      minimumRemainingVoteMinutes: 120,
+      pollIntervalMs: 60_000,
+      maxCompletedRequests: 100,
+      maxBudgetUsd: 1,
+      maxRequestCostUsd: 0.01,
+    });
   });
 
   it("rejects unsafe polling and thresholds", () => {

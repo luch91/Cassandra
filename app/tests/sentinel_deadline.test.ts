@@ -1,7 +1,14 @@
 import { isActionableBeforeDeadline } from "../src";
 import type { SentinelConfig } from "../src/config";
 
-const config: SentinelConfig = { escalationThreshold: 0.85, minimumRemainingVoteMinutes: 60, pollIntervalMs: 60_000 };
+const config: SentinelConfig = {
+  escalationThreshold: 0.85,
+  minimumRemainingVoteMinutes: 60,
+  pollIntervalMs: 60_000,
+  maxCompletedRequests: 100,
+  maxBudgetUsd: 1,
+  maxRequestCostUsd: 0.01,
+};
 
 describe("Sentinel proposal deadline", () => {
   it("accepts a proposal with sufficient time remaining", () => {

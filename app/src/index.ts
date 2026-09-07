@@ -9,7 +9,13 @@ import { computeAgreement, decideTriageAction, MIN_MINER_SAMPLE_SIZE } from "./s
 import { verifyLayer1Receipts } from "./onchain/action";
 import { appendLayer1Evidence } from "./onchain/receipt_evidence";
 import { loadSentinelConfig, type SentinelConfig } from "./config";
-import { appendRequestLedger, readProcessedProposalIds } from "./usage/request_ledger";
+import {
+  appendRequestLedger,
+  assertCanStartPaidRequest,
+  getUsageMetrics,
+  readProcessedProposalIds,
+  type UsageBudget,
+} from "./usage/request_ledger";
 import { appendProposalAttempt, readAttemptedProposalIds } from "./usage/proposal_attempts";
 import { extractRiskSignal } from "./scoring/risk_signal";
 
@@ -19,6 +25,13 @@ export function isActionableBeforeDeadline(proposal: { votingEndsAt: string }, c
 }
 
 export async function runSentinelCycle(config = loadSentinelConfig()): Promise<void> {
+  const budget: UsageBudget = {
+    maxCompletedRequests: config.maxCompletedRequests,
+    maxBudgetUsd: config.maxBudgetUsd,
+    maxRequestCostUsd: config.maxRequestCostUsd,
+  };
+  const assertBudget = async () => assertCanStartPaidRequest(await getUsageMetrics(), budget);
+  await assertBudget();
   assertPaidRequestsEnabled();
   const proposals = await fetchPendingProposals();
   const processedProposalIds = await readProcessedProposalIds();
@@ -36,8 +49,12 @@ export async function runSentinelCycle(config = loadSentinelConfig()): Promise<v
     const query = `Does this governance proposal show signs of fraud or fabricated evidence? Proposal: ${proposal.title}\n\n${proposal.bodyText}`;
 
     await appendProposalAttempt(proposal.id, "FRAUD_DETECTION");
-    const askResults = await askMultipleMiners("FRAUD_DETECTION", query, MIN_MINER_SAMPLE_SIZE, (result) =>
-      appendRequestLedger(proposal.id, "FRAUD_DETECTION", result)
+    const askResults = await askMultipleMiners(
+      "FRAUD_DETECTION",
+      query,
+      MIN_MINER_SAMPLE_SIZE,
+      (result) => appendRequestLedger(proposal.id, "FRAUD_DETECTION", result),
+      assertBudget,
     );
 
     const agreement = computeAgreement(

@@ -2,6 +2,9 @@ export interface SentinelConfig {
   escalationThreshold: number;
   minimumRemainingVoteMinutes: number;
   pollIntervalMs: number;
+  maxCompletedRequests: number;
+  maxBudgetUsd: number;
+  maxRequestCostUsd: number;
 }
 
 function readNumber(env: NodeJS.ProcessEnv, key: string, fallback: number, min: number, max: number): number {
@@ -20,5 +23,8 @@ export function loadSentinelConfig(env: NodeJS.ProcessEnv = process.env): Sentin
     escalationThreshold: readNumber(env, "SENTINEL_ESCALATION_THRESHOLD", 0.85, 0.5, 1),
     minimumRemainingVoteMinutes: readNumber(env, "SENTINEL_MIN_REMAINING_VOTE_MINUTES", 60, 0, 10_080),
     pollIntervalMs: readNumber(env, "SENTINEL_POLL_INTERVAL_MS", 900_000, 60_000, 86_400_000),
+    maxCompletedRequests: readNumber(env, "SENTINEL_MAX_REQUESTS", 100, 1, 1_000_000),
+    maxBudgetUsd: readNumber(env, "SENTINEL_MAX_BUDGET_USD", 1, 0.01, 1_000_000),
+    maxRequestCostUsd: readNumber(env, "SENTINEL_MAX_REQUEST_COST_USD", 0.01, 0.000001, 1_000_000),
   };
 }
