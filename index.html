@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sentinel | Cassandra</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, system-ui, sans-serif; }
+    body { margin: 0; background: #0b1020; color: #edf2ff; }
+    main { max-width: 860px; margin: 0 auto; padding: 72px 24px; }
+    .tag { color: #9db7ff; letter-spacing: .12em; text-transform: uppercase; font-size: .78rem; }
+    h1 { font-size: clamp(2.6rem, 8vw, 5rem); margin: 12px 0; }
+    h2 { margin-top: 44px; }
+    p, li { color: #c5cde3; line-height: 1.7; }
+    code { background: #171f38; padding: 2px 6px; border-radius: 5px; color: #d9e2ff; }
+    pre { background: #111a31; padding: 18px; border-radius: 10px; overflow-x: auto; color: #d9e2ff; }
+    a { color: #a9c2ff; }
+    .notice { border: 1px solid #34436f; border-radius: 10px; padding: 16px; background: #101a35; }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="tag">Cassandra application layer</div>
+    <h1>Sentinel</h1>
+    <p>Governance-risk triage for active <code>balancer.eth</code> Snapshot proposals.</p>
+    <p>Sentinel is a CLI application. It discovers compatible Telegraph fraud-detection Miners, sends the same assessment query for independent review, compares the returned signals, verifies x402 receipts and signal hashes, and records auditable JSONL evidence.</p>
+
+    <h2>How it works</h2>
+    <ol>
+      <li>Read an active governance proposal from Snapshot.</li>
+      <li>Discover live Miners that declare the fraud-detection intent.</li>
+      <li>Collect independent assessments and compare agreement.</li>
+      <li>Verify receipts before recording evidence.</li>
+      <li>Stop safely at 100 completed requests or the configured $1 budget.</li>
+    </ol>
+
+    <h2>CLI commands</h2>
+    <pre>npm run preflight:sentinel
+npm run smoke:sentinel
+npm run start:sentinel
+npm run metrics:sentinel</pre>
+
+    <div class="notice"><strong>Operational note:</strong> this page is a static showcase. Sentinel has no web UI and makes no paid request without explicit authorization and a funded wallet.</div>
+
+    <h2>Source</h2>
+    <p><a href="https://github.com/luch91/Cassandra">View the Cassandra repository on GitHub</a></p>
+  </main>
+</body>
+</html>
