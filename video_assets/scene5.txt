@@ -1,0 +1,4 @@
+BUILT FOR RESPONSIBLE OPERATION
+Hard budget guard       No-repeat ledger
+Receipt-backed evidence CLI-first, auditable
+Sentinel helps reviewers decide what deserves a closer look.

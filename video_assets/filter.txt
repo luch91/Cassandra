@@ -1,0 +1,10 @@
+[0:v]
+drawbox=x=0:y=0:w=1920:h=1080:color=0xf5f0e7:t=fill,
+drawbox=x=0:y=0:w=1920:h=10:color=0xa34f35:t=fill,
+drawtext=fontfile='C\:/Windows/Fonts/arial.ttf':textfile='C\:/Users/user/Desktop/Cassandra/video_assets/scene1.txt':fontcolor=0x1f3349:fontsize=64:line_spacing=22:x=150:y=270:enable='between(t,0,6)',
+drawtext=fontfile='C\:/Windows/Fonts/arial.ttf':textfile='C\:/Users/user/Desktop/Cassandra/video_assets/scene2.txt':fontcolor=0x20242b:fontsize=54:line_spacing=22:x=150:y=250:enable='between(t,6,12)',
+drawtext=fontfile='C\:/Windows/Fonts/arial.ttf':textfile='C\:/Users/user/Desktop/Cassandra/video_assets/scene3.txt':fontcolor=0x1f3349:fontsize=48:line_spacing=22:x=150:y=220:enable='between(t,12,18)',
+drawtext=fontfile='C\:/Windows/Fonts/cour.ttf':textfile='C\:/Users/user/Desktop/Cassandra/video_assets/scene4.txt':fontcolor=0x20242b:fontsize=42:line_spacing=22:x=150:y=220:enable='between(t,18,24)',
+drawtext=fontfile='C\:/Windows/Fonts/arial.ttf':textfile='C\:/Users/user/Desktop/Cassandra/video_assets/scene5.txt':fontcolor=0x1f3349:fontsize=48:line_spacing=22:x=150:y=220:enable='between(t,24,30)',
+drawtext=fontfile='C\:/Windows/Fonts/arial.ttf':text='CASSANDRA':fontcolor=0xa34f35:fontsize=20:x=150:y=930
+[v]

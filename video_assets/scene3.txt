@@ -1,0 +1,5 @@
+THE WORKFLOW
+1  Ingest the exact active Snapshot proposal
+2  Discover Miners declaring FRAUD_DETECTION
+3  Compare independent signals
+4  Verify receipts and preserve evidence

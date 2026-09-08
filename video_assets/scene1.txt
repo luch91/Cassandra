@@ -1,0 +1,3 @@
+SENTINEL / CASSANDRA APPLICATION LAYER
+Governance risk, made reviewable
+Independent fraud assessments, made auditable.

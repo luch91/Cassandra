@@ -1,0 +1,5 @@
+THE OPERATOR VIEW
+$ npm run preflight:sentinel
+compatible miners: 3    ready: true
+$ npm run metrics:sentinel
+completed requests: 0 / 100    total cost: $0.00
